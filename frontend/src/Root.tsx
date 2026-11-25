@@ -28,7 +28,7 @@ export default function Root() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
         <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8">
           <div className="mb-6 flex justify-center">
             <div className="rounded-lg bg-indigo-50 p-3 text-indigo-600">
@@ -44,7 +44,7 @@ export default function Root() {
                 Password
               </label>
               <div className="relative">
-                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
                   <KeyRound className="h-5 w-5" />
                 </span>
                 <input
@@ -59,7 +59,7 @@ export default function Root() {
                   autoComplete="current-password"
                   aria-invalid={error}
                   aria-describedby={error ? 'login-error' : undefined}
-                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 transition placeholder-slate-500 focus:border-slate-400"
                   autoFocus
                 />
               </div>
@@ -78,7 +78,7 @@ export default function Root() {
             </button>
           </form>
         </div>
-      </div>
+      </main>
     );
   }
 

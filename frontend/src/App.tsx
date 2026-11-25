@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import NotesView from './components/NotesView';
 import NotificationBell from './components/NotificationBell';
+import { useFocusTrap } from './lib/useFocusTrap';
 import RichText from './components/RichText';
 import ConfirmDialog from './components/ConfirmDialog';
 
@@ -84,6 +85,8 @@ interface Material {
 type View = 'dashboard' | 'board' | 'ai' | 'notes';
 
 const uid = (id: string | number) => String(id);
+
+const URGENT_DAYS = 2;
 
 const COLUMNS: { id: TaskStatus; title: string; accent: string; dot: string }[] = [
   { id: 'pending', title: 'Belum', accent: 'text-slate-600', dot: 'bg-slate-400' },
@@ -175,7 +178,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   }, [fetchAll]);
 
   useEffect(() => {
-    if (!showModal && !selectedTask && !confirmTask) return;
+    if (!showModal && !selectedTask) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (showModal) {
@@ -185,15 +188,13 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         setDeadline('');
         setMaterial(null);
         setEditingTask(null);
-      } else if (confirmTask) {
-        setConfirmTask(null);
       } else if (selectedTask) {
         setSelectedTask(null);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showModal, selectedTask, confirmTask]);
+  }, [showModal, selectedTask]);
 
   const resetForm = () => {
     setTitle('');
@@ -308,14 +309,16 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     const prev = tasks;
     setTasks(tasks.map((t) => (t.id === task.id ? { ...t, status } : t)));
     try {
-      await fetch(`${API}/tasks?id=${task.id}`, {
+      const res = await fetch(`${API}/tasks?id=${task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-    } catch {
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || `HTTP ${res.status}`);
+    } catch (err: any) {
       setTasks(prev);
-      notify('Gagal mengubah status', 'err');
+      notify('Gagal mengubah status: ' + (err?.message || 'coba lagi'), 'err');
     }
   };
 
@@ -348,14 +351,18 @@ export default function App({ onLogout }: { onLogout: () => void }) {
 
   const deleteTask = async (id: string | number) => {
     const prev = tasks;
+    const prevSelected = selectedTask;
     setTasks(tasks.filter((t) => t.id !== id));
     if (selectedTask?.id === id) setSelectedTask(null);
     try {
-      await fetch(`${API}/tasks?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API}/tasks?id=${id}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || `HTTP ${res.status}`);
       notify('Tugas dihapus');
-    } catch {
+    } catch (err: any) {
       setTasks(prev);
-      notify('Gagal menghapus tugas', 'err');
+      setSelectedTask(prevSelected);
+      notify('Gagal menghapus tugas: ' + (err?.message || 'coba lagi'), 'err');
     }
   };
 
@@ -388,7 +395,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     const urgent = tasks.filter((t) => {
       if (t.status === 'completed') return false;
       const d = daysUntil(t.deadline);
-      return d !== null && d <= 3;
+      return d !== null && d <= URGENT_DAYS;
     }).length;
     return { total, completed, inProgress, urgent, progress, pending: total - completed };
   }, [tasks]);
@@ -448,12 +455,14 @@ export default function App({ onLogout }: { onLogout: () => void }) {
 
   const searchInput = (
     <div className="relative w-full sm:w-72">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
       <input
+        type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Cari tugas..."
-        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition placeholder-slate-400 focus:border-slate-400"
+        aria-label="Cari tugas"
+        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 transition placeholder-slate-500 focus:border-slate-400"
       />
     </div>
   );
@@ -470,7 +479,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               </div>
               <div>
                 <p className="text-sm font-semibold leading-tight text-slate-900">StudyDesk</p>
-                <p className="text-xs text-slate-400">AI Task Manager</p>
+                <p className="text-xs text-slate-500">AI Task Manager</p>
               </div>
             </div>
 
@@ -506,7 +515,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         </aside>
 
         {/* Main */}
-        <div className="pb-36 min-w-0 flex-1">
+        <main className="pb-36 min-w-0 flex-1">
           <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
               <div className="flex items-center gap-3">
@@ -570,7 +579,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">AI Study Assistant</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">AI Study Assistant</p>
                 <p className="mt-1 text-sm text-slate-600">
                   Klik tugas untuk membuka penjelasan, kunci jawaban & post-test yang tersimpan.
                 </p>
@@ -600,7 +609,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                   {searchInput}
                 </div>
                 {loading ? (
-                  <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-20 text-sm text-slate-400">
+                  <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-20 text-sm text-slate-500">
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat tugas...
                   </div>
                 ) : searched.length === 0 ? (
@@ -627,7 +636,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
 
               <aside className="hidden space-y-6 lg:block">
                 <div className="rounded-lg border border-slate-200 bg-white p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Progres Belajar</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Progres Belajar</p>
                   <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">{stats.progress}%</p>
                   <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                     <div
@@ -643,7 +652,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
 
                 <div className="rounded-lg border border-slate-200 bg-white p-5">
                   <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Deadline Terdekat</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Deadline Terdekat</p>
                     <button
                       onClick={() => setView('board')}
                       className="text-xs font-medium text-indigo-600 transition hover:text-indigo-700"
@@ -664,7 +673,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                               {b && (
                                 <span className={`rounded-full border px-2 py-0.5 text-[11px] ${b.cls}`}>{b.text}</span>
                               )}
-                              <span className="text-[11px] text-slate-400">{formatDate(task.deadline)}</span>
+                              <span className="text-[11px] text-slate-500">{formatDate(task.deadline)}</span>
                             </div>
                           </button>
                         );
@@ -675,7 +684,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               </aside>
             </div>
           ) : loading ? (
-            <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-20 text-slate-400">
+            <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-20 text-slate-500">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat tugas...
             </div>
           ) : view === 'board' ? (
@@ -714,7 +723,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
             searched.filter((t) => aiMap[uid(t.id)]).length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white py-20 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100">
-                  <Sparkles className="h-8 w-8 text-slate-400" />
+                  <Sparkles className="h-8 w-8 text-slate-500" />
                 </div>
                 <p className="mt-4 font-medium text-slate-700">Belum ada materi AI</p>
                 <p className="mt-1 max-w-sm text-sm text-slate-500">
@@ -767,7 +776,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               ))}
             </div>
           )}
-        </div>
+        </main>
       </div>
 
       {toast && (
@@ -840,7 +849,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           onClick={() => setView('dashboard')}
           aria-label="Dashboard"
           aria-current={view === 'dashboard' ? 'page' : undefined}
-          className={`flex flex-col items-center gap-1 ${view === 'dashboard' ? 'font-semibold text-indigo-600' : 'text-slate-400'}`}
+          className={`flex flex-col items-center gap-1 ${view === 'dashboard' ? 'font-semibold text-indigo-600' : 'text-slate-500'}`}
         >
           <LayoutDashboard className="h-5 w-5" />
           <span className="text-[10px]">Dashboard</span>
@@ -849,7 +858,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           onClick={() => setView('board')}
           aria-label="Board"
           aria-current={view === 'board' ? 'page' : undefined}
-          className={`relative flex flex-col items-center gap-1 ${view === 'board' ? 'font-semibold text-indigo-600' : 'text-slate-400'}`}
+          className={`relative flex flex-col items-center gap-1 ${view === 'board' ? 'font-semibold text-indigo-600' : 'text-slate-500'}`}
         >
           <Columns3 className="h-5 w-5" />
           <span className="text-[10px]">Board</span>
@@ -870,7 +879,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           onClick={() => setView('notes')}
           aria-label="Catatan"
           aria-current={view === 'notes' ? 'page' : undefined}
-          className={`flex flex-col items-center gap-1 ${view === 'notes' ? 'font-semibold text-indigo-600' : 'text-slate-400'}`}
+          className={`flex flex-col items-center gap-1 ${view === 'notes' ? 'font-semibold text-indigo-600' : 'text-slate-500'}`}
         >
           <StickyNote className="h-5 w-5" />
           <span className="text-[10px]">Catatan</span>
@@ -879,7 +888,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           onClick={() => setView('ai')}
           aria-label="AI Assistant"
           aria-current={view === 'ai' ? 'page' : undefined}
-          className={`flex flex-col items-center gap-1 ${view === 'ai' ? 'font-semibold text-indigo-600' : 'text-slate-400'}`}
+          className={`flex flex-col items-center gap-1 ${view === 'ai' ? 'font-semibold text-indigo-600' : 'text-slate-500'}`}
         >
           <Sparkles className="h-5 w-5" />
           <span className="text-[10px]">AI</span>
@@ -934,7 +943,7 @@ function StatCard({
   return (
     <div className="bg-white p-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
         <span className="text-slate-300">{icon}</span>
       </div>
       <p className={`mt-4 text-3xl font-semibold tracking-tight ${urgent ? 'text-rose-600' : 'text-slate-900'}`}>
@@ -999,7 +1008,7 @@ function TaskCard({
           )}
         </button>
         <div className="min-w-0 flex-1">
-          <h3 className={`truncate font-semibold ${done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+          <h3 className={`truncate font-semibold ${done ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
             {task.title}
           </h3>
           {task.description && <p className="mt-1 line-clamp-2 text-sm text-slate-500 break-words">{task.description}</p>}
@@ -1043,14 +1052,14 @@ function TaskCard({
           <button
             onClick={() => onEdit(task)}
             aria-label={`Edit "${task.title}"`}
-            className="rounded-md p-2 text-slate-400 transition hover:text-indigo-600"
+            className="rounded-md p-2 text-slate-500 transition hover:text-indigo-600"
           >
             <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={() => onDelete(task.id)}
             aria-label={`Hapus "${task.title}"`}
-            className="rounded-md p-2 text-slate-400 transition hover:text-rose-500"
+            className="rounded-md p-2 text-slate-500 transition hover:text-rose-500"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -1100,7 +1109,7 @@ function KanbanColumn({
       </div>
       <div className="flex-1 space-y-2">
         {tasks.length === 0 ? (
-          <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs text-slate-400">
+          <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs text-slate-500">
             Tarik tugas ke sini
           </div>
         ) : (
@@ -1204,14 +1213,14 @@ function KanbanCard({
         <button
           onClick={() => onEdit(task)}
           aria-label={`Edit "${task.title}"`}
-          className="ml-auto rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600"
+          className="ml-auto rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-indigo-600"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={() => onDelete(task.id)}
           aria-label={`Hapus "${task.title}"`}
-          className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+          className="rounded-md p-1 text-slate-500 transition hover:bg-rose-50 hover:text-rose-500"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -1261,6 +1270,7 @@ function AddTaskModal({
   const deadlineId = React.useId();
   const fileId = React.useId();
   const headingId = React.useId();
+  const panelRef = useFocusTrap<HTMLDivElement>(true);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm">
@@ -1271,6 +1281,7 @@ function AddTaskModal({
         className="absolute inset-0 cursor-default"
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
@@ -1285,7 +1296,7 @@ function AddTaskModal({
             type="button"
             onClick={onClose}
             aria-label="Tutup dialog"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           >
             <X className="h-5 w-5" />
           </button>
@@ -1295,7 +1306,7 @@ function AddTaskModal({
             <input
               id={titleId}
               autoFocus
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-500 focus:border-slate-400"
               placeholder="Contoh: Kalkulus, Integral Tentu"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -1305,7 +1316,7 @@ function AddTaskModal({
             <textarea
               id={descriptionId}
               rows={3}
-              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-500 focus:border-slate-400"
               placeholder="Detail atau soal tugas..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -1335,7 +1346,7 @@ function AddTaskModal({
                   type="button"
                   onClick={onRemoveMaterial}
                   aria-label={`Hapus materi ${material.fileName}`}
-                  className="rounded-md p-1 text-slate-400 hover:text-rose-500"
+                  className="rounded-md p-1 text-slate-500 hover:text-rose-500"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1368,11 +1379,11 @@ function AddTaskModal({
                     </>
                   ) : (
                     <>
-                      <UploadCloud className="h-7 w-7 text-slate-400" />
+                      <UploadCloud className="h-7 w-7 text-slate-500" />
                       <p className="mt-2 text-sm text-slate-600">
                         Tarik dan lepas file di sini, atau pilih file
                       </p>
-                      <p className="text-xs text-slate-400">PDF, DOCX, PPTX, XLSX, JPG, PNG (maks sekitar 15MB)</p>
+                      <p className="text-xs text-slate-500">PDF, DOCX, PPTX, XLSX, JPG, PNG (maks sekitar 15MB)</p>
                     </>
                   )}
                 </button>
@@ -1436,6 +1447,7 @@ function AIDrawer({
   onClose: () => void;
 }) {
   const headingId = React.useId();
+  const panelRef = useFocusTrap<HTMLDivElement>(true);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 backdrop-blur-sm">
@@ -1446,6 +1458,7 @@ function AIDrawer({
         className="absolute inset-0 cursor-default"
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
@@ -1457,7 +1470,7 @@ function AIDrawer({
               <Sparkles className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">AI Study Assistant</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">AI Study Assistant</p>
               <h3 id={headingId} className="mt-1 max-w-md truncate text-base font-semibold text-slate-900">
                 {task.title}
               </h3>
@@ -1467,7 +1480,7 @@ function AIDrawer({
             type="button"
             onClick={onClose}
             aria-label="Tutup panel AI"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           >
             <X className="h-5 w-5" />
           </button>
@@ -1494,7 +1507,7 @@ function AIDrawer({
           {!ai ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100">
-                <Sparkles className="h-8 w-8 text-slate-400" />
+                <Sparkles className="h-8 w-8 text-slate-500" />
               </div>
               <p className="mt-4 max-w-sm text-sm text-slate-500">
                 Belum ada materi AI untuk tugas ini. Generate penjelasan, kunci jawaban, dan post-test sekarang.
@@ -1617,7 +1630,7 @@ function EmptyState({ hasTasks, onAdd }: { hasTasks: boolean; onAdd: () => void 
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white py-20 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100">
-        <ListTodo className="h-8 w-8 text-slate-400" />
+        <ListTodo className="h-8 w-8 text-slate-500" />
       </div>
       <p className="mt-4 font-medium text-slate-700">{hasTasks ? 'Tidak ada tugas yang cocok' : 'Belum ada tugas'}</p>
       <p className="mt-1 text-sm text-slate-500">
