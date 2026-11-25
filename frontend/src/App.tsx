@@ -9,7 +9,6 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { motion } from 'framer-motion';
 import {
   GraduationCap,
   Sparkles,
@@ -174,6 +173,27 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    if (!showModal && !selectedTask && !confirmTask) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (showModal) {
+        setShowModal(false);
+        setTitle('');
+        setDescription('');
+        setDeadline('');
+        setMaterial(null);
+        setEditingTask(null);
+      } else if (confirmTask) {
+        setConfirmTask(null);
+      } else if (selectedTask) {
+        setSelectedTask(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showModal, selectedTask, confirmTask]);
 
   const resetForm = () => {
     setTitle('');
@@ -483,22 +503,6 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               />
             </nav>
           </div>
-
-          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Progres</span>
-              <span className="text-sm font-semibold text-slate-900">{stats.progress}%</span>
-            </div>
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-              <div
-                className="h-full rounded-full bg-indigo-600 transition-all duration-500"
-                style={{ width: `${stats.progress}%` }}
-              />
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              {stats.completed}/{stats.total} tugas selesai
-            </p>
-          </div>
         </aside>
 
         {/* Main */}
@@ -518,8 +522,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                 <NotificationBell tasks={tasks} onOpenTask={openDetail} onGoBoard={() => setView('board')} />
                 <button
                   onClick={onLogout}
-                  className="p-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-rose-600 transition-all shadow-sm"
-                  title="Keluar"
+                  aria-label="Keluar"
+                  className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-rose-200 hover:text-rose-600"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -529,15 +533,15 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               <NotificationBell tasks={tasks} onOpenTask={openDetail} onGoBoard={() => setView('board')} />
               <button
                 onClick={onLogout}
-                className="p-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm active:scale-95"
-                title="Keluar"
+                aria-label="Keluar"
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-rose-200 hover:text-rose-600"
               >
                 <LogOut className="w-4 h-4" />
               </button>
               <button
                 onClick={fetchAll}
+                aria-label="Muat ulang data"
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
-                title="Muat ulang"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
@@ -552,17 +556,12 @@ export default function App({ onLogout }: { onLogout: () => void }) {
 
           {/* Stats */}
           {view === 'dashboard' && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4"
-            >
+            <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
               <StatCard icon={<ListTodo className="h-5 w-5" />} label="Total Tugas" value={stats.total} tone="indigo" />
               <StatCard icon={<PlayCircle className="h-5 w-5" />} label="Sedang Dikerjakan" value={stats.inProgress} tone="amber" />
               <StatCard icon={<CheckCheck className="h-5 w-5" />} label="Selesai" value={stats.completed} tone="emerald" />
               <StatCard icon={<AlertCircle className="h-5 w-5" />} label="Deadline Dekat" value={stats.urgent} tone="rose" />
-            </motion.div>
+            </div>
           )}
 
           {view === 'ai' && (
@@ -607,42 +606,22 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                 ) : searched.length === 0 ? (
                   <EmptyState hasTasks={tasks.length > 0} onAdd={openAdd} />
                 ) : (
-                  <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    variants={{
-                      hidden: {},
-                      visible: {
-                        transition: {
-                          staggerChildren: 0.05,
-                        },
-                      },
-                    }}
-                    className="grid grid-cols-1 gap-3 xl:grid-cols-2"
-                  >
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                     {searched.map((task) => (
-                      <motion.div
+                      <TaskCard
                         key={task.id}
-                        variants={{
-                          hidden: { opacity: 0, y: 10 },
-                          visible: { opacity: 1, y: 0 },
-                        }}
-                        transition={{ duration: 0.25, ease: 'easeOut' }}
-                      >
-                        <TaskCard
-                          task={task}
-                          ai={aiMap[uid(task.id)]}
-                          loading={loadingId === uid(task.id)}
-                          onOpen={openDetail}
-                          onGenerate={generateAI}
-                          onDelete={askDelete}
-                          onToggleStatus={updateStatus}
-                          onEdit={openEdit}
-                          badge={deadlineBadge}
-                        />
-                      </motion.div>
+                        task={task}
+                        ai={aiMap[uid(task.id)]}
+                        loading={loadingId === uid(task.id)}
+                        onOpen={openDetail}
+                        onGenerate={generateAI}
+                        onDelete={askDelete}
+                        onToggleStatus={updateStatus}
+                        onEdit={openEdit}
+                        badge={deadlineBadge}
+                      />
                     ))}
-                  </motion.div>
+                  </div>
                 )}
               </div>
 
@@ -707,14 +686,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               onDragCancel={() => setDraggingTask(null)}
             >
               <div className="flex gap-4 overflow-x-auto pb-4 snap-x md:grid md:grid-cols-3">
-                {COLUMNS.map((col, cidx) => (
-                  <motion.div
-                    key={col.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, delay: cidx * 0.05 }}
-                    className="w-[85vw] sm:w-[320px] md:w-auto shrink-0 snap-center"
-                  >
+                {COLUMNS.map((col) => (
+                  <div key={col.id} className="w-[85vw] shrink-0 snap-center sm:w-[320px] md:w-auto">
                     <KanbanColumn
                       column={col}
                       tasks={searched.filter((t) => t.status === col.id)}
@@ -726,7 +699,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                       onEdit={openEdit}
                       badge={deadlineBadge}
                     />
-                  </motion.div>
+                  </div>
                 ))}
               </div>
               <DragOverlay dropAnimation={null}>
@@ -799,6 +772,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
 
       {toast && (
         <div
+          role={toast.type === 'err' ? 'alert' : 'status'}
+          aria-live={toast.type === 'err' ? 'assertive' : 'polite'}
           className={`fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg ${
             toast.type === 'ok'
               ? 'border-emerald-200 bg-white text-emerald-700'
@@ -857,49 +832,59 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         }}
       />
 
-      {/* Floating Dock - Mobile Navigation Bar */}
-      <div className="fixed bottom-4 left-4 right-4 z-50 flex items-center justify-around rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-2xl backdrop-blur-md lg:hidden">
+      <nav
+        aria-label="Navigasi utama"
+        className="fixed bottom-4 left-4 right-4 z-50 flex items-center justify-around rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-lg lg:hidden"
+      >
         <button
           onClick={() => setView('dashboard')}
-          className={`flex flex-col items-center gap-1 ${view === 'dashboard' ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}
+          aria-label="Dashboard"
+          aria-current={view === 'dashboard' ? 'page' : undefined}
+          className={`flex flex-col items-center gap-1 ${view === 'dashboard' ? 'font-semibold text-indigo-600' : 'text-slate-400'}`}
         >
           <LayoutDashboard className="h-5 w-5" />
           <span className="text-[10px]">Dashboard</span>
         </button>
         <button
           onClick={() => setView('board')}
-          className={`relative flex flex-col items-center gap-1 ${view === 'board' ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}
+          aria-label="Board"
+          aria-current={view === 'board' ? 'page' : undefined}
+          className={`relative flex flex-col items-center gap-1 ${view === 'board' ? 'font-semibold text-indigo-600' : 'text-slate-400'}`}
         >
           <Columns3 className="h-5 w-5" />
           <span className="text-[10px]">Board</span>
           {tasks.length > 0 && (
-            <span className="absolute -top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-100 text-[9px] font-bold text-indigo-600">
+            <span className="absolute -top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-100 px-1 text-[9px] font-semibold text-indigo-600">
               {tasks.length}
             </span>
           )}
         </button>
         <button
           onClick={openAdd}
-          className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 transition active:scale-95"
-          title="Tambah Tugas"
+          aria-label="Tambah Tugas"
+          className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white transition hover:bg-indigo-700"
         >
           <Plus className="h-6 w-6" />
         </button>
         <button
           onClick={() => setView('notes')}
-          className={`flex flex-col items-center gap-1 ${view === 'notes' ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}
+          aria-label="Catatan"
+          aria-current={view === 'notes' ? 'page' : undefined}
+          className={`flex flex-col items-center gap-1 ${view === 'notes' ? 'font-semibold text-indigo-600' : 'text-slate-400'}`}
         >
           <StickyNote className="h-5 w-5" />
           <span className="text-[10px]">Catatan</span>
         </button>
         <button
           onClick={() => setView('ai')}
-          className={`flex flex-col items-center gap-1 ${view === 'ai' ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}
+          aria-label="AI Assistant"
+          aria-current={view === 'ai' ? 'page' : undefined}
+          className={`flex flex-col items-center gap-1 ${view === 'ai' ? 'font-semibold text-indigo-600' : 'text-slate-400'}`}
         >
           <Sparkles className="h-5 w-5" />
           <span className="text-[10px]">AI</span>
         </button>
-      </div>
+      </nav>
     </div>
   );
 }
@@ -920,6 +905,7 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
         active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
       }`}
@@ -1001,7 +987,11 @@ function TaskCard({
   return (
     <div className="group rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-300 w-full">
       <div className="flex items-start gap-3 w-full">
-        <button onClick={() => onToggleStatus(task, done ? 'pending' : 'completed')} className="mt-0.5 shrink-0" title="Tandai selesai">
+        <button
+          onClick={() => onToggleStatus(task, done ? 'pending' : 'completed')}
+          aria-label={done ? `Tandai "${task.title}" belum selesai` : `Tandai "${task.title}" selesai`}
+          className="mt-0.5 shrink-0"
+        >
           {done ? (
             <CheckCircle2 className="h-6 w-6 text-emerald-500" />
           ) : (
@@ -1052,15 +1042,15 @@ function TaskCard({
         <div className="ml-auto flex items-center">
           <button
             onClick={() => onEdit(task)}
-            className="p-2 text-slate-400 transition hover:text-indigo-600"
-            title="Edit"
+            aria-label={`Edit "${task.title}"`}
+            className="rounded-md p-2 text-slate-400 transition hover:text-indigo-600"
           >
             <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={() => onDelete(task.id)}
-            className="p-2 text-slate-400 transition hover:text-rose-500"
-            title="Hapus"
+            aria-label={`Hapus "${task.title}"`}
+            className="rounded-md p-2 text-slate-400 transition hover:text-rose-500"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -1114,25 +1104,18 @@ function KanbanColumn({
             Tarik tugas ke sini
           </div>
         ) : (
-          tasks.map((task, idx) => (
-            <motion.div
+          tasks.map((task) => (
+            <KanbanCard
               key={task.id}
-              layout
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: idx * 0.02 }}
-            >
-              <KanbanCard
-                task={task}
-                ai={aiMap[uid(task.id)]}
-                loading={loadingId === uid(task.id)}
-                onOpen={onOpen}
-                onGenerate={onGenerate}
-                onDelete={onDelete}
-                onEdit={onEdit}
-                badge={badge}
-              />
-            </motion.div>
+              task={task}
+              ai={aiMap[uid(task.id)]}
+              loading={loadingId === uid(task.id)}
+              onOpen={onOpen}
+              onGenerate={onGenerate}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              badge={badge}
+            />
           ))
         )}
       </div>
@@ -1176,8 +1159,8 @@ function KanbanCard({
         <button
           {...listeners}
           {...attributes}
-          className="mt-0.5 cursor-grab touch-none text-slate-300 hover:text-slate-500 active:cursor-grabbing"
-          title="Tarik untuk pindah kolom"
+          aria-label={`Tarik "${task.title}" untuk pindah kolom`}
+          className="mt-0.5 cursor-grab touch-none rounded-md text-slate-300 hover:text-slate-500 active:cursor-grabbing"
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -1220,15 +1203,15 @@ function KanbanCard({
         </button>
         <button
           onClick={() => onEdit(task)}
+          aria-label={`Edit "${task.title}"`}
           className="ml-auto rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600"
-          title="Edit"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={() => onDelete(task.id)}
+          aria-label={`Hapus "${task.title}"`}
           className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
-          title="Hapus"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -1273,47 +1256,72 @@ function AddTaskModal({
   onSubmit: (e: React.FormEvent) => void;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const titleId = React.useId();
+  const descriptionId = React.useId();
+  const deadlineId = React.useId();
+  const fileId = React.useId();
+  const headingId = React.useId();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+      <button
+        type="button"
+        aria-label="Tutup dialog"
+        onClick={onClose}
+        className="absolute inset-0 cursor-default"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        className="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl"
+      >
         <div className="flex items-center justify-between border-b border-slate-100 p-5">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <h2 id={headingId} className="flex items-center gap-2 text-base font-semibold text-slate-900">
             {isEditing ? <Pencil className="h-4 w-4 text-indigo-600" /> : <Plus className="h-4 w-4 text-indigo-600" />}
             {isEditing ? 'Edit Tugas' : 'Tambah Tugas Baru'}
           </h2>
-          <button onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup dialog"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
         <form onSubmit={onSubmit} className="space-y-4 p-5">
-          <Field label="Judul Tugas / Matkul">
+          <Field label="Judul Tugas / Matkul" htmlFor={titleId}>
             <input
+              id={titleId}
               autoFocus
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400"
-              placeholder="Contoh: Kalkulus - Integral Tentu"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
+              placeholder="Contoh: Kalkulus, Integral Tentu"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </Field>
-          <Field label="Deskripsi / Soal">
+          <Field label="Deskripsi / Soal" htmlFor={descriptionId}>
             <textarea
+              id={descriptionId}
               rows={3}
-              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400"
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
               placeholder="Detail atau soal tugas..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </Field>
-          <Field label="Deadline (tanggal & jam)">
+          <Field label="Deadline (tanggal & jam)" htmlFor={deadlineId}>
             <input
+              id={deadlineId}
               type="datetime-local"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition focus:border-slate-400"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
             />
           </Field>
 
-          <Field label="Materi / File Pendukung (PDF, Word, PPT, Excel, Gambar)">
+          <Field label="Materi / File Pendukung (PDF, Word, PPT, Excel, Gambar)" htmlFor={fileId}>
             {material ? (
               <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <FileText className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
@@ -1323,44 +1331,54 @@ function AddTaskModal({
                     {material.text ? `${material.text.slice(0, 80)}${material.text.length > 80 ? '…' : ''}` : 'Tidak ada teks terdeteksi'}
                   </p>
                 </div>
-                <button type="button" onClick={onRemoveMaterial} className="text-slate-400 hover:text-rose-500">
+                <button
+                  type="button"
+                  onClick={onRemoveMaterial}
+                  aria-label={`Hapus materi ${material.fileName}`}
+                  className="rounded-md p-1 text-slate-400 hover:text-rose-500"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             ) : (
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  const f = e.dataTransfer.files?.[0];
-                  if (f) onFile(f);
-                }}
-                onClick={() => inputRef.current?.click()}
-                className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-5 text-center transition ${
-                  dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
-                }`}
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="h-7 w-7 animate-spin text-slate-500" />
-                    <p className="mt-2 text-sm text-slate-500">Memproses file...</p>
-                  </>
-                ) : (
-                  <>
-                    <UploadCloud className="h-7 w-7 text-slate-400" />
-                    <p className="mt-2 text-sm text-slate-600">
-                      Tarik & lepas file di sini, atau <span className="font-medium text-slate-900">pilih file</span>
-                    </p>
-                    <p className="text-xs text-slate-400">PDF, DOCX, PPTX, XLSX, JPG, PNG (maks ~15MB)</p>
-                  </>
-                )}
+              <>
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) onFile(f);
+                  }}
+                  onClick={() => inputRef.current?.click()}
+                  className={`flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-5 text-center transition ${
+                    dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
+                  }`}
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-7 w-7 animate-spin text-slate-500" />
+                      <p className="mt-2 text-sm text-slate-500">Memproses file...</p>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="h-7 w-7 text-slate-400" />
+                      <p className="mt-2 text-sm text-slate-600">
+                        Tarik dan lepas file di sini, atau pilih file
+                      </p>
+                      <p className="text-xs text-slate-400">PDF, DOCX, PPTX, XLSX, JPG, PNG (maks sekitar 15MB)</p>
+                    </>
+                  )}
+                </button>
                 <input
                   ref={inputRef}
+                  id={fileId}
                   type="file"
                   className="hidden"
                   accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif"
@@ -1369,7 +1387,7 @@ function AddTaskModal({
                     if (f) onFile(f);
                   }}
                 />
-              </div>
+              </>
             )}
           </Field>
 
@@ -1417,10 +1435,22 @@ function AIDrawer({
   onGenerate: (t: Task) => void;
   onClose: () => void;
 }) {
+  const headingId = React.useId();
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-2xl">
+      <button
+        type="button"
+        aria-label="Tutup panel AI"
+        onClick={onClose}
+        className="absolute inset-0 cursor-default"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        className="relative z-10 flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-2xl"
+      >
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900">
@@ -1428,10 +1458,17 @@ function AIDrawer({
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">AI Study Assistant</p>
-              <h3 className="mt-1 max-w-md truncate text-base font-semibold text-slate-900">{task.title}</h3>
+              <h3 id={headingId} className="mt-1 max-w-md truncate text-base font-semibold text-slate-900">
+                {task.title}
+              </h3>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup panel AI"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -1554,10 +1591,12 @@ function AIDrawer({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-600">{label}</label>
+      <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-slate-600">
+        {label}
+      </label>
       {children}
     </div>
   );

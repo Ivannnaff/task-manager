@@ -26,6 +26,10 @@ const ANTI_SPAM = (process.env.ANTI_SPAM || 'true').toLowerCase() !== 'false';
 const DIGEST = (process.env.DIGEST || 'true').toLowerCase() !== 'false';
 const MAX_SENDS_PER_DAY = Number(process.env.MAX_SENDS_PER_DAY || 0);
 const TEST = process.argv.includes('--test');
+const ONCE = process.argv.includes('--once');
+const slotIndex = process.argv.indexOf('--slot');
+const SLOT = ((slotIndex >= 0 && process.argv[slotIndex + 1]) || process.env.WA_SLOT || 'TEST').toUpperCase();
+const ONCE_TIMEOUT_MS = Number(process.env.ONCE_TIMEOUT_MS || 60000);
 
 const COUNT_FILE = path.join(__dirname, '.send-count.json');
 function getTodayCount(today) {
@@ -41,7 +45,7 @@ function bumpTodayCount(today, n = 1) {
   try {
     fs.writeFileSync(COUNT_FILE, JSON.stringify({ date: today, count }));
   } catch (e) {
-    console.warn('⚠️  Gagal simpan hitungan kirim:', e.message);
+    console.warn('Gagal simpan hitungan kirim:', e.message);
   }
   return count;
 }
@@ -53,12 +57,15 @@ const supabase =
       })
     : null;
 
-if (!supabase) console.warn('⚠️  SUPABASE_URL/ANON_KEY belum diset — log anti-spam (wa_logs) tidak aktif.');
+if (!supabase) console.warn('SUPABASE_URL/ANON_KEY belum diset — log anti-spam (wa_logs) tidak aktif.');
 
 let sock;
 let cronScheduled = false;
 let pairingRequested = false;
 let isStarting = false;
+let lastRunFailed = false;
+let onceFinished = false;
+let onceTimeout;
 
 async function startBot() {
   if (isStarting) return;
@@ -116,29 +123,46 @@ async function startBot() {
 
       if (qr) {
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
-        console.log('\n📱 Scan QR WhatsApp:');
+        console.log('\nScan QR WhatsApp:');
         console.log('   (1) Buka link ini di browser laptop, lalu scan dengan HP:');
-        console.log(`\n   👉 ${qrUrl}\n`);
+        console.log(`\n   ${qrUrl}\n`);
         console.log('   (2) Atau scan QR di bawah ini:\n');
         qrcode.generate(qr, { small: true });
+
+        if (ONCE) {
+          console.error('Mode --once butuh session yang sudah terpasang. Pairing ulang secara lokal, lalu simpan session ke Supabase.');
+          process.exit(1);
+        }
       }
 
-      if (!sock.authState.creds.registered && PAIRING_NUMBER && !pairingRequested) {
+      if (!ONCE && !sock.authState.creds.registered && PAIRING_NUMBER && !pairingRequested) {
         pairingRequested = true;
         try {
           setTimeout(async () => {
             const code = await sock.requestPairingCode(PAIRING_NUMBER);
-            console.log(`\n🔑 KODE PAIRING WHATSAPP ANDA: ${code}\n`);
+            console.log(`\nKODE PAIRING WHATSAPP ANDA: ${code}\n`);
             console.log('   Buka WhatsApp → Perangkat Tertaut → Tautkan Perangkat → Tautkan dengan nomor telepon, lalu masukkan kode di atas.\n');
           }, 4000);
         } catch (err) {
-          console.error('❌ Gagal minta pairing code:', err.message);
+          console.error('Gagal minta pairing code:', err.message);
         }
       }
 
       if (connection === 'open') {
         isStarting = false;
-        console.log('✅ Bot WhatsApp siap berjalan dengan Baileys!');
+        clearTimeout(onceTimeout);
+        console.log('Bot WhatsApp siap berjalan dengan Baileys!');
+
+        if (ONCE) {
+          console.log(`Mode sekali jalan: slot [${SLOT}]\n`);
+          await notifyDeadline(SLOT);
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          onceFinished = true;
+          console.log(lastRunFailed ? 'Selesai dengan error. Keluar...' : 'Selesai. Keluar...');
+          process.exit(lastRunFailed ? 1 : 0);
+          return;
+        }
+
         console.log(`   Jadwal: pagi [${CRON_MORNING}] & malam [${CRON_EVENING}]`);
         console.log(`   Deadline mepet: H-${URGENT_THRESHOLD} / H-1 / hari ini / terlambat`);
         console.log(`   Mode: ${DIGEST ? 'DIGEST (gabung 1 pesan)' : 'per-tugas (1 pesan/tugas)'}`);
@@ -152,20 +176,20 @@ async function startBot() {
         }
 
         if (TEST) {
-          console.log('🧪 MODE TEST: memicu pengecekan deadline sekarang...\n');
+          console.log('MODE TEST: memicu pengecekan deadline sekarang...\n');
           await notifyDeadline('TEST');
-          console.log('\n🧪 Mode test selesai. Bot tetap jalan (Ctrl+C untuk stop).\n');
+          console.log('\nMode test selesai. Bot tetap jalan (Ctrl+C untuk stop).\n');
         }
 
         if (process.stdin.isTTY) {
           const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-          console.log('💬 Perintah: ketik "test" lalu Enter untuk cek & kirim sekarang, "q" lalu Enter untuk keluar.\n');
+          console.log('Perintah: ketik "test" lalu Enter untuk cek & kirim sekarang, "q" lalu Enter untuk keluar.\n');
           rl.on('line', async (line) => {
             const cmd = line.trim().toLowerCase();
             if (cmd === 'test' || cmd === 'trigger') {
               await notifyDeadline('TEST');
             } else if (cmd === 'q' || cmd === 'quit' || cmd === 'exit') {
-              console.log('👋 Keluar...');
+              console.log('Keluar...');
               process.exit(0);
             } else if (cmd) {
               console.log('Perintah tidak dikenal. Ketik "test" untuk memicu, "q" untuk keluar.');
@@ -176,26 +200,43 @@ async function startBot() {
 
       if (connection === 'close') {
         isStarting = false;
+        clearTimeout(onceTimeout);
         const statusCode = lastDisconnect?.error?.output?.statusCode;
+
+        if (ONCE) {
+          if (onceFinished) process.exit(0);
+          console.error(`Mode --once: koneksi terputus sebelum selesai (status: ${statusCode}).`);
+          if (statusCode === DisconnectReason.loggedOut) {
+            await clearSession();
+            console.error('Session logout dihapus dari Supabase. Lakukan pairing ulang secara lokal.');
+          }
+          process.exit(1);
+          return;
+        }
+
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        console.log(`🔌 Koneksi terputus (status: ${statusCode}). Reconnecting: ${shouldReconnect}...`);
+        console.log(`Koneksi terputus (status: ${statusCode}). Reconnecting: ${shouldReconnect}...`);
 
         if (shouldReconnect) {
-          console.log('⏳ Menunggu 5 detik sebelum mencoba reconnect...');
+          console.log('Menunggu 5 detik sebelum mencoba reconnect...');
           setTimeout(() => {
             startBot();
           }, 5000);
         } else {
-          console.log('🚪 Bot logout terdeteksi. Menghapus session lama dari Supabase secara otomatis...');
+          console.log('Bot logout terdeteksi. Menghapus session lama dari Supabase secara otomatis...');
           await clearSession();
-          console.log('✅ Session dibersihkan. Silakan restart bot untuk scan/pairing ulang.');
+          console.log('Session dibersihkan. Silakan restart bot untuk scan/pairing ulang.');
           process.exit(0);
         }
       }
     });
   } catch (e) {
     isStarting = false;
-    console.error('❌ startBot error:', e.message);
+    console.error('startBot error:', e.message);
+    if (ONCE) {
+      process.exit(1);
+      return;
+    }
     setTimeout(() => {
       startBot();
     }, 5000);
@@ -239,12 +280,11 @@ function buildMessage(task, d, sent = false) {
   }
 
   const desc = task.description ? `${task.description}\n\n` : '';
-  const mark = sent ? '✅' : '🔔';
   const note = sent ? '\n_(sudah pernah dikirim hari ini)_' : '';
 
   return (
     `*${urgencyText(d)}*\n\n` +
-    `${mark} *${task.title}*${note}\n` +
+    `*${task.title}*${note}\n` +
     desc +
     `Deadline: ${dateLabel}\n\n` +
     `Selesaikan sekarang, jangan ditunda.`
@@ -267,12 +307,12 @@ function buildDigest(items) {
   const lines = items
     .slice()
     .sort((a, b) => a.d - b.d)
-    .map((it, i) => `${it.sent ? '✅' : '🔔'} ${i + 1}. *${it.task.title}* — ${shortUrgency(it.d)}${clockLabel(it.task.deadline)}`);
+    .map((it, i) => `${i + 1}. *${it.task.title}* — ${shortUrgency(it.d)}${clockLabel(it.task.deadline)}`);
   const total = items.length;
   const sentCount = items.filter((it) => it.sent).length;
   const header =
     sentCount > 0
-      ? `*${total} TUGAS MENDESAK* (${sentCount} sudah dikirim ✅)`
+      ? `*${total} TUGAS MENDESAK* (${sentCount} sudah dikirim)`
       : `*${total} TUGAS MENDESAK*`;
   return (
     `${header}\n\n` +
@@ -289,7 +329,7 @@ async function hasLog(taskId, today) {
     .eq('task_id', taskId)
     .eq('sent_on', today)
     .maybeSingle();
-  if (error) console.warn('⚠️  Gagal cek wa_logs:', error.message);
+  if (error) console.warn('Gagal cek wa_logs:', error.message);
   return !!data;
 }
 
@@ -301,7 +341,7 @@ async function addLog(taskId, today, type, slot) {
     type,
     slot,
   });
-  if (error) console.warn('⚠️  Gagal simpan wa_logs:', error.message);
+  if (error) console.warn('Gagal simpan wa_logs:', error.message);
 }
 
 async function sendWAMessage(targetNumber, text) {
@@ -311,12 +351,14 @@ async function sendWAMessage(targetNumber, text) {
 }
 
 async function notifyDeadline(slot) {
+  lastRunFailed = false;
   if (!TARGET) {
-    console.error('❌ WA_TARGET_NUMBER belum diisi di .env — perintah dibatalkan.');
+    console.error('WA_TARGET_NUMBER belum diisi di .env — perintah dibatalkan.');
+    lastRunFailed = true;
     return;
   }
 
-  console.log(`\n🔔 [${slot}] Pengecekan deadline...`);
+  console.log(`\n[${slot}] Pengecekan deadline...`);
   try {
     const res = await fetch(`${API_URL}/tasks`);
     const json = await res.json();
@@ -326,7 +368,7 @@ async function notifyDeadline(slot) {
     let remaining = MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY - getTodayCount(today) : Infinity;
     if (MAX_SENDS_PER_DAY > 0) {
       if (remaining <= 0) {
-        console.log(`   ⏹ Batas harian tercapai (${MAX_SENDS_PER_DAY} pesan/hari). Tidak mengirim.`);
+        console.log(`   Batas harian tercapai (${MAX_SENDS_PER_DAY} pesan/hari). Tidak mengirim.`);
         return;
       }
       console.log(`   Kuota hari ini: tersisa ${remaining}/${MAX_SENDS_PER_DAY} pesan.`);
@@ -344,7 +386,7 @@ async function notifyDeadline(slot) {
 
       const sent = ANTI_SPAM && (await hasLog(task.id, today));
       if (sent) {
-        console.log(`   ✅ sudah terkirim hari ini (kirim ulang dgn tanda ✅): ${task.title} [${type}/${slot}]`);
+        console.log(`   sudah terkirim hari ini, kirim ulang: ${task.title} [${type}/${slot}]`);
         resent.push({ task, d, type, sent: true });
       } else {
         fresh.push({ task, d, type, sent: false });
@@ -362,16 +404,17 @@ async function notifyDeadline(slot) {
       try {
         await sendWAMessage(TARGET, buildDigest(allItems));
         bumpTodayCount(today, 1);
-        console.log(`   ✅ terkirim (digest): ${fresh.length} baru, ${resent.length} kirim ulang`);
+        console.log(`   terkirim (digest): ${fresh.length} baru, ${resent.length} kirim ulang`);
         if (ANTI_SPAM) for (const it of fresh) await addLog(it.task.id, today, it.type, slot);
       } catch (err) {
-        console.error('   ❌ gagal kirim digest:', err?.message || String(err));
+        lastRunFailed = true;
+        console.error('   gagal kirim digest:', err?.message || String(err));
       }
     } else {
       let sent = 0;
       for (const { task, d, type, sent: alreadySent } of allItems) {
         if (remaining <= 0) {
-          console.log(`   ⏹ Batas harian tercapai (${MAX_SENDS_PER_DAY} pesan/hari). Sisa tugas dilewati.`);
+          console.log(`   Batas harian tercapai (${MAX_SENDS_PER_DAY} pesan/hari). Sisa tugas dilewati.`);
           break;
         }
         try {
@@ -379,22 +422,35 @@ async function notifyDeadline(slot) {
           sent++;
           remaining--;
           bumpTodayCount(today, 1);
-          console.log(`   ✅ terkirim: ${task.title} [${type}/${slot}]${alreadySent ? ' (kirim ulang)' : ''}`);
+          console.log(`   terkirim: ${task.title} [${type}/${slot}]${alreadySent ? ' (kirim ulang)' : ''}`);
           if (ANTI_SPAM && !alreadySent) await addLog(task.id, today, type, slot);
         } catch (err) {
-          console.error(`   ❌ gagal kirim "${task.title}":`, err?.message || String(err));
+          lastRunFailed = true;
+          console.error(`   gagal kirim "${task.title}":`, err?.message || String(err));
         }
       }
       console.log(`   Selesai. ${sent} pesan terkirim.`);
     }
   } catch (err) {
-    console.error('❌ notifyDeadline error:', err.message);
+    lastRunFailed = true;
+    console.error('notifyDeadline error:', err.message);
   }
 }
 
 if (!TARGET) {
-  console.warn('⚠️  WA_TARGET_NUMBER belum diset. Bot tetap hidup (QR bisa di-scan), tapi tidak akan mengirim pesan.');
+  console.warn('WA_TARGET_NUMBER belum diset. Bot tetap hidup (QR bisa di-scan), tapi tidak akan mengirim pesan.');
 }
 
-console.log('🚀 Menjalankan bot WhatsApp dengan Baileys...');
+if (ONCE) {
+  if (MAX_SENDS_PER_DAY > 0) {
+    console.warn('Mode --once: batas harian memakai file lokal dan tidak persist di GitHub Actions.');
+  }
+  onceTimeout = setTimeout(() => {
+    console.error(`Mode --once: timeout ${ONCE_TIMEOUT_MS / 1000} detik, koneksi WhatsApp tidak open.`);
+    process.exit(1);
+  }, ONCE_TIMEOUT_MS);
+  console.log(`Menjalankan bot WhatsApp sekali jalan (slot: ${SLOT})...`);
+} else {
+  console.log('Menjalankan bot WhatsApp dengan Baileys...');
+}
 startBot();
