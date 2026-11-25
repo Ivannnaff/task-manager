@@ -30,7 +30,7 @@ const shortDate = (deadline: string) => {
 const tone = (d: number) => {
   if (d <= 0) return 'text-rose-600';
   if (d <= 2) return 'text-amber-600';
-  return 'text-slate-400';
+  return 'text-slate-500';
 };
 
 const URGENT_THRESHOLD = 3;
@@ -98,7 +98,7 @@ export default function NotificationBell({
       {open && (
         <div className="absolute -right-32 top-11 z-40 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl sm:right-0 sm:-right-auto">
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               Deadline Mendesak
             </span>
             <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
@@ -109,7 +109,7 @@ export default function NotificationBell({
           <div className="max-h-64 overflow-y-auto">
             {count === 0 ? (
               <div className="flex flex-col items-center gap-1.5 px-4 py-6 text-center">
-                <Inbox className="h-4 w-4 text-slate-400" />
+                <Inbox className="h-4 w-4 text-slate-500" />
                 <p className="text-xs text-slate-500">Tidak ada deadline mendesak</p>
               </div>
             ) : (

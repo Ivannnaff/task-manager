@@ -11,6 +11,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
+import { useFocusTrap } from '../lib/useFocusTrap';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -51,6 +52,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
   const [search, setSearch] = useState('');
 
   const [showForm, setShowForm] = useState(false);
+  const panelRef = useFocusTrap<HTMLDivElement>(showForm);
   const [editing, setEditing] = useState<Note | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -189,12 +191,14 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     <div>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Cari catatan..."
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition placeholder-slate-400 focus:border-slate-400"
+            aria-label="Cari catatan"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 transition placeholder-slate-500 focus:border-slate-400"
           />
         </div>
         <button
@@ -206,13 +210,13 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-20 text-slate-400">
+        <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-20 text-slate-500">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat catatan...
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white py-20 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100">
-            <StickyNote className="h-8 w-8 text-slate-400" />
+            <StickyNote className="h-8 w-8 text-slate-500" />
           </div>
           <p className="mt-4 font-medium text-slate-700">
             {notes.length === 0 ? 'Belum ada catatan' : 'Tidak ada catatan yang cocok'}
@@ -266,14 +270,14 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
                   <button
                     onClick={() => openEdit(n)}
                     aria-label={`Edit catatan ${n.title}`}
-                    className="rounded-md p-1.5 text-slate-400 transition hover:bg-white/70 hover:text-indigo-600"
+                    className="rounded-md p-1.5 text-slate-500 transition hover:bg-white/70 hover:text-indigo-600"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setConfirmId(n.id)}
                     aria-label={`Hapus catatan ${n.title}`}
-                    className="rounded-md p-1.5 text-slate-400 transition hover:bg-white/70 hover:text-rose-500"
+                    className="rounded-md p-1.5 text-slate-500 transition hover:bg-white/70 hover:text-rose-500"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -299,6 +303,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
             className="absolute inset-0 cursor-default"
           />
           <div
+            ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby={headingId}
@@ -313,7 +318,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
                 type="button"
                 onClick={closeModal}
                 aria-label="Tutup dialog catatan"
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -330,7 +335,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Contoh: Rumus Integral Penting"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-500 focus:border-slate-400"
                 />
               </div>
 
@@ -344,7 +349,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Tulis poin pentingmu di sini..."
-                  className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
+                  className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-500 focus:border-slate-400"
                 />
               </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useId } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useFocusTrap } from '../lib/useFocusTrap';
 
 export default function ConfirmDialog({
   open,
@@ -17,6 +18,7 @@ export default function ConfirmDialog({
   onCancel: () => void;
 }) {
   const headingId = useId();
+  const panelRef = useFocusTrap<HTMLDivElement>(open);
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +39,7 @@ export default function ConfirmDialog({
         className="absolute inset-0 cursor-default"
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}

@@ -69,12 +69,12 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
   return (
     <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#0d1117]">
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
           {lang || 'code'}
         </span>
         <button
           onClick={copy}
-          className="flex items-center gap-1 text-[10px] font-medium text-slate-400 transition hover:text-slate-200"
+          className="flex items-center gap-1 text-[10px] font-medium text-slate-500 transition hover:text-slate-200"
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copied ? 'Tersalin' : 'Copy'}
