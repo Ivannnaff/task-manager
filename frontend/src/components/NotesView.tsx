@@ -42,6 +42,10 @@ const SWATCH: Record<string, string> = {
 };
 
 export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | 'err') => void }) {
+  const titleId = React.useId();
+  const contentId = React.useId();
+  const headingId = React.useId();
+
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -92,6 +96,15 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     setShowForm(false);
     setEditing(null);
   };
+
+  useEffect(() => {
+    if (!showForm) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showForm]);
 
   const saveNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,8 +242,9 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
                 <h3 className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-800">{n.title}</h3>
                 <button
                   onClick={() => togglePin(n)}
-                  title={n.pinned ? 'Lepas pin' : 'Sematkan'}
-                  className={`shrink-0 rounded-md p-1.5 transition ${
+                  aria-label={n.pinned ? `Lepas pin catatan ${n.title}` : `Sematkan catatan ${n.title}`}
+                  aria-pressed={!!n.pinned}
+                  className={`shrink-0 rounded-md p-1.5 transition focus-visible:opacity-100 ${
                     n.pinned ? 'text-indigo-600' : 'text-slate-300 opacity-0 hover:text-indigo-600 group-hover:opacity-100'
                   }`}
                 >
@@ -251,15 +265,15 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => openEdit(n)}
+                    aria-label={`Edit catatan ${n.title}`}
                     className="rounded-md p-1.5 text-slate-400 transition hover:bg-white/70 hover:text-indigo-600"
-                    title="Edit"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setConfirmId(n.id)}
+                    aria-label={`Hapus catatan ${n.title}`}
                     className="rounded-md p-1.5 text-slate-400 transition hover:bg-white/70 hover:text-rose-500"
-                    title="Hapus"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -278,52 +292,75 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-xl">
+          <button
+            type="button"
+            aria-label="Tutup dialog catatan"
+            onClick={closeModal}
+            className="absolute inset-0 cursor-default"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={headingId}
+            className="relative z-10 w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-xl"
+          >
             <div className="flex items-center justify-between border-b border-slate-100 p-5">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <h2 id={headingId} className="flex items-center gap-2 text-base font-semibold text-slate-900">
                 {editing ? <Pencil className="h-5 w-5 text-indigo-600" /> : <StickyNote className="h-5 w-5 text-indigo-600" />}
                 {editing ? 'Edit Catatan' : 'Catatan Baru'}
               </h2>
-              <button onClick={closeModal} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+              <button
+                type="button"
+                onClick={closeModal}
+                aria-label="Tutup dialog catatan"
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={saveNote} className="space-y-4 p-5">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-600">Judul</label>
+                <label htmlFor={titleId} className="mb-1.5 block text-sm font-medium text-slate-600">
+                  Judul
+                </label>
                 <input
+                  id={titleId}
                   autoFocus
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Contoh: Rumus Integral Penting"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-600">Isi Catatan</label>
+                <label htmlFor={contentId} className="mb-1.5 block text-sm font-medium text-slate-600">
+                  Isi Catatan
+                </label>
                 <textarea
+                  id={contentId}
                   rows={5}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Tulis poin pentingmu di sini..."
-                  className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400"
+                  className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-600">Warna</label>
-                <div className="flex gap-2">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Warna</span>
+                <div className="flex gap-2" role="group" aria-label="Warna catatan">
                   {Object.keys(COLORS).map((c) => (
                     <button
                       key={c}
                       type="button"
                       onClick={() => setColor(c)}
+                      aria-label={`Warna ${c}`}
+                      aria-pressed={color === c}
                       className={`h-8 w-8 rounded-full ${SWATCH[c]} transition ${
                         color === c ? 'ring-2 ring-slate-900 ring-offset-2' : 'opacity-70 hover:opacity-100'
                       }`}
-                      title={c}
                     />
                   ))}
                 </div>

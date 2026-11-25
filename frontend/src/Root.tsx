@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyRound, Lock, ArrowRight } from 'lucide-react';
+import { KeyRound, Lock } from 'lucide-react';
 import App from './App';
 
 export default function Root() {
@@ -28,41 +28,54 @@ export default function Root() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm w-full max-w-md">
-          <div className="flex justify-center mb-6">
-            <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
-              <Lock className="w-6 h-6" />
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8">
+          <div className="mb-6 flex justify-center">
+            <div className="rounded-lg bg-indigo-50 p-3 text-indigo-600">
+              <Lock className="h-6 w-6" />
             </div>
           </div>
-          <h1 className="text-xl font-bold text-center text-slate-800 mb-1">Task Manager Kuliah</h1>
-          <p className="text-slate-500 text-center text-sm mb-6">Masukkan password untuk mengakses sistem</p>
-          
+          <h1 className="mb-1 text-center text-xl font-semibold tracking-tight text-slate-900">StudyDesk</h1>
+          <p className="mb-6 text-center text-sm text-slate-500">Masuk untuk mengelola tugas dan materi kuliahmu</p>
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
+              <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-slate-600">
+                Password
+              </label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                  <KeyRound className="w-5 h-5" />
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <KeyRound className="h-5 w-5" />
                 </span>
                 <input
+                  id="login-password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password..."
-                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(false);
+                  }}
+                  placeholder="Masukkan password"
+                  autoComplete="current-password"
+                  aria-invalid={error}
+                  aria-describedby={error ? 'login-error' : undefined}
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 transition placeholder-slate-400 focus:border-slate-400"
                   autoFocus
                 />
               </div>
-              {error && <p className="text-rose-500 text-xs mt-2 pl-1">Password salah! Coba lagi.</p>}
+              {error && (
+                <p id="login-error" role="alert" className="mt-2 pl-1 text-xs text-rose-600">
+                  Password salah. Coba lagi.
+                </p>
+              )}
             </div>
 
-    <button
-      type="submit"
-      className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium rounded-lg transition-all shadow-md flex items-center justify-center gap-2"
-    >
-      <span>Masuk Sistem</span>
-      <ArrowRight className="w-4 h-4" />
-    </button>
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+            >
+              Masuk Sistem
+            </button>
           </form>
         </div>
       </div>

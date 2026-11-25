@@ -66,13 +66,23 @@ export default function NotificationBell({
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
   const count = urgent.length;
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        title="Notifikasi deadline"
+        aria-label={`Notifikasi deadline${count > 0 ? `, ${count} tugas mendesak` : ''}`}
+        aria-expanded={open}
         className={`relative flex h-9 w-9 items-center justify-center rounded-lg border bg-white transition ${
           open ? 'border-slate-300 text-slate-900' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
         }`}

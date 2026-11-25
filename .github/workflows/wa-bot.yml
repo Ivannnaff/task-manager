@@ -1,0 +1,76 @@
+name: WhatsApp Deadline Reminder
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # 07.00 WIB
+    - cron: '0 13 * * *'  # 20.00 WIB
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: 'Slot pengiriman'
+        required: true
+        default: 'TEST'
+        type: choice
+        options:
+          - AM
+          - PM
+          - TEST
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wa-bot
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: whatsapp-bot
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: whatsapp-bot/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine slot
+        id: slot
+        env:
+          INPUT_SLOT: ${{ github.event.inputs.slot }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          if [ -n "$INPUT_SLOT" ]; then
+            echo "value=$INPUT_SLOT" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_SCHEDULE" = "0 0 * * *" ]; then
+            echo "value=AM" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_SCHEDULE" = "0 13 * * *" ]; then
+            echo "value=PM" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=TEST" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WA_TARGET_NUMBER: ${{ secrets.WA_TARGET_NUMBER }}
+          API_URL: ${{ secrets.API_URL }}
+          URGENT_THRESHOLD: ${{ secrets.URGENT_THRESHOLD }}
+          ANTI_SPAM: ${{ secrets.ANTI_SPAM }}
+          DIGEST: ${{ secrets.DIGEST }}
+          MAX_SENDS_PER_DAY: ${{ secrets.MAX_SENDS_PER_DAY }}
+          CRON_TZ: Asia/Jakarta
+          SLOT: ${{ steps.slot.outputs.value }}
+        run: node index.js --once --slot "$SLOT"
