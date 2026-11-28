@@ -96,7 +96,7 @@ export default function NotificationBell({
       </button>
 
       {open && (
-        <div className="absolute -right-32 top-11 z-40 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl sm:right-0 sm:-right-auto">
+        <div className="fixed left-4 right-4 top-16 z-40 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-64">
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               Deadline Mendesak
