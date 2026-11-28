@@ -89,6 +89,7 @@ type View = 'dashboard' | 'board' | 'ai' | 'notes';
 const uid = (id: string | number) => String(id);
 
 const URGENT_DAYS = 2;
+const STATUS_ORDER: Record<TaskStatus, number> = { pending: 0, in_progress: 1, completed: 2 };
 
 const COLUMNS: { id: TaskStatus; title: string; accent: string; dot: string }[] = [
   { id: 'pending', title: 'Belum', accent: 'text-slate-600', dot: 'bg-slate-400' },
@@ -414,12 +415,18 @@ export default function App({ onLogout }: { onLogout: () => void }) {
 
   const searched = useMemo(
     () =>
-      tasks.filter(
-        (t) =>
-          !search ||
-          t.title.toLowerCase().includes(search.toLowerCase()) ||
-          t.description?.toLowerCase().includes(search.toLowerCase())
-      ),
+      tasks
+        .filter(
+          (t) =>
+            !search ||
+            t.title.toLowerCase().includes(search.toLowerCase()) ||
+            t.description?.toLowerCase().includes(search.toLowerCase())
+        )
+        .sort(
+          (a, b) =>
+            STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
+            (a.deadline || '').localeCompare(b.deadline || '')
+        ),
     [tasks, search]
   );
 
