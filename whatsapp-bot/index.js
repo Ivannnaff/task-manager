@@ -17,7 +17,6 @@ const pino = require('pino');
 
 const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 const API_KEY = process.env.BACKEND_API_KEY || '';
-const TARGET = process.env.WA_TARGET_NUMBER || '';
 const PAIRING_NUMBER = (process.env.WA_PAIRING_NUMBER || '').replace(/\D/g, '');
 const CRON_MORNING = process.env.CRON_MORNING || '0 7 * * *';
 const CRON_EVENING = process.env.CRON_EVENING || '0 20 * * *';
@@ -353,19 +352,20 @@ async function sendWAMessage(targetNumber, text) {
 
 async function notifyDeadline(slot) {
   lastRunFailed = false;
-  if (!TARGET) {
-    console.error('WA_TARGET_NUMBER belum diisi di .env — perintah dibatalkan.');
-    lastRunFailed = true;
-    return;
-  }
-
-  console.log(`\n[${slot}] Pengecekan deadline...`);
+  console.log(`
+[${slot}] Pengecekan deadline...`);
   try {
-    const res = await fetch(`${API_URL}/tasks`, {
+    const res = await fetch(`${API_URL}/bot/digest`, {
       headers: API_KEY ? { 'x-api-key': API_KEY } : {},
     });
     const json = await res.json();
-    if (!json.success) throw new Error(json.error || 'Gagal ambil tugas');
+    if (!json.success) throw new Error(json.error || 'Gagal ambil data notifikasi');
+
+    const users = json.data?.users || [];
+    if (users.length === 0) {
+      console.log('   Selesai. Belum ada user dengan nomor WhatsApp aktif.');
+      return;
+    }
 
     const today = new Date().toISOString().slice(0, 10);
     let remaining = MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY - getTodayCount(today) : Infinity;
@@ -377,71 +377,72 @@ async function notifyDeadline(slot) {
       console.log(`   Kuota hari ini: tersisa ${remaining}/${MAX_SENDS_PER_DAY} pesan.`);
     }
 
-    const fresh = [];
-    const resent = [];
-    for (const task of json.data) {
-      if (task.status === 'completed' || !task.deadline) continue;
-      const d = daysUntil(task.deadline);
-      if (d === null || d > URGENT_THRESHOLD) continue;
+    for (const user of users) {
+      const target = String(user.whatsappNumber || '').replace(/D/g, '');
+      if (!target) continue;
 
-      const type = labelType(d);
-      if (!type) continue;
+      console.log(`   User ...${target.slice(-4)}: ${user.tasks.length} tugas aktif`);
+      const fresh = [];
+      const resent = [];
+      for (const task of user.tasks) {
+        if (task.status === 'completed' || !task.deadline) continue;
+        const d = daysUntil(task.deadline);
+        if (d === null || d > URGENT_THRESHOLD) continue;
 
-      const sent = ANTI_SPAM && (await hasLog(task.id, today));
-      if (sent) {
-        console.log(`   sudah terkirim hari ini, kirim ulang: ${task.title} [${type}/${slot}]`);
-        resent.push({ task, d, type, sent: true });
-      } else {
-        fresh.push({ task, d, type, sent: false });
-      }
-    }
+        const type = labelType(d);
+        if (!type) continue;
 
-    const allItems = [...fresh, ...resent];
-
-    if (allItems.length === 0) {
-      console.log('   Selesai. Tidak ada tugas mepet deadline.');
-      return;
-    }
-
-    if (DIGEST) {
-      try {
-        await sendWAMessage(TARGET, buildDigest(allItems));
-        bumpTodayCount(today, 1);
-        console.log(`   terkirim (digest): ${fresh.length} baru, ${resent.length} kirim ulang`);
-        if (ANTI_SPAM) for (const it of fresh) await addLog(it.task.id, today, it.type, slot);
-      } catch (err) {
-        lastRunFailed = true;
-        console.error('   gagal kirim digest:', err?.message || String(err));
-      }
-    } else {
-      let sent = 0;
-      for (const { task, d, type, sent: alreadySent } of allItems) {
-        if (remaining <= 0) {
-          console.log(`   Batas harian tercapai (${MAX_SENDS_PER_DAY} pesan/hari). Sisa tugas dilewati.`);
-          break;
+        const sent = ANTI_SPAM && (await hasLog(task.id, today));
+        if (sent) {
+          console.log(`      sudah terkirim hari ini, kirim ulang: ${task.title} [${type}/${slot}]`);
+          resent.push({ task, d, type, sent: true });
+        } else {
+          fresh.push({ task, d, type, sent: false });
         }
+      }
+
+      const allItems = [...fresh, ...resent];
+      if (allItems.length === 0) {
+        console.log('      Tidak ada tugas mepet deadline.');
+        continue;
+      }
+
+      if (DIGEST) {
         try {
-          await sendWAMessage(TARGET, buildMessage(task, d, alreadySent));
-          sent++;
-          remaining--;
+          await sendWAMessage(target, buildDigest(allItems));
           bumpTodayCount(today, 1);
-          console.log(`   terkirim: ${task.title} [${type}/${slot}]${alreadySent ? ' (kirim ulang)' : ''}`);
-          if (ANTI_SPAM && !alreadySent) await addLog(task.id, today, type, slot);
+          console.log(`      terkirim (digest): ${fresh.length} baru, ${resent.length} kirim ulang`);
+          if (ANTI_SPAM) for (const it of fresh) await addLog(it.task.id, today, it.type, slot);
         } catch (err) {
           lastRunFailed = true;
-          console.error(`   gagal kirim "${task.title}":`, err?.message || String(err));
+          console.error('      gagal kirim digest:', err?.message || String(err));
         }
+      } else {
+        let sent = 0;
+        for (const { task, d, type, sent: alreadySent } of allItems) {
+          if (remaining <= 0) {
+            console.log(`      Batas harian tercapai (${MAX_SENDS_PER_DAY} pesan/hari). Sisa dilewati.`);
+            break;
+          }
+          try {
+            await sendWAMessage(target, buildMessage(task, d, alreadySent));
+            sent++;
+            remaining--;
+            bumpTodayCount(today, 1);
+            console.log(`      terkirim: ${task.title} [${type}/${slot}]${alreadySent ? ' (kirim ulang)' : ''}`);
+            if (ANTI_SPAM && !alreadySent) await addLog(task.id, today, type, slot);
+          } catch (err) {
+            lastRunFailed = true;
+            console.error(`      gagal kirim "${task.title}":`, err?.message || String(err));
+          }
+        }
+        console.log(`      Selesai. ${sent} pesan terkirim.`);
       }
-      console.log(`   Selesai. ${sent} pesan terkirim.`);
     }
   } catch (err) {
     lastRunFailed = true;
     console.error('notifyDeadline error:', err.message);
   }
-}
-
-if (!TARGET) {
-  console.warn('WA_TARGET_NUMBER belum diset. Bot tetap hidup (QR bisa di-scan), tapi tidak akan mengirim pesan.');
 }
 
 if (ONCE) {
