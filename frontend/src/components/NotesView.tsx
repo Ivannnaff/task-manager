@@ -12,12 +12,7 @@ import {
 } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 import { useFocusTrap } from '../lib/useFocusTrap';
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  return fetch(url, { ...options });
-};
+import { apiFetch } from '../lib/api';
 
 interface Note {
   id: string;
@@ -67,7 +62,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
   async function fetchNotes() {
     setLoading(true);
     try {
-      const res = await fetchWithAuth(`${API}/notes`);
+      const res = await apiFetch('/notes');
       const json = await res.json();
       if (json.success) setNotes(json.data);
       else notify('Gagal memuat catatan: ' + (json.error || ''), 'err');
@@ -114,9 +109,8 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     setSaving(true);
     try {
       if (editing) {
-        const res = await fetchWithAuth(`${API}/notes?id=${editing.id}`, {
+        const res = await apiFetch(`/notes?id=${editing.id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, content, color }),
         });
         const json = await res.json();
@@ -130,9 +124,8 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
           notify('Catatan diperbarui');
         } else notify('Gagal memperbarui: ' + (json.error || ''), 'err');
       } else {
-        const res = await fetchWithAuth(`${API}/notes`, {
+        const res = await apiFetch('/notes', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, content, color, pinned: false }),
         });
         const json = await res.json();
@@ -153,9 +146,8 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     const next = !n.pinned;
     setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, pinned: next } : x)).sort(sortNotes));
     try {
-      await fetchWithAuth(`${API}/notes?id=${n.id}`, {
+      await apiFetch(`/notes?id=${n.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pinned: next }),
       });
     } catch {
@@ -168,7 +160,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     const prev = notes;
     setNotes((p) => p.filter((n) => n.id !== id));
     try {
-      await fetchWithAuth(`${API}/notes?id=${id}`, { method: 'DELETE' });
+      await apiFetch(`/notes?id=${id}`, { method: 'DELETE' });
       notify('Catatan dihapus');
     } catch {
       setNotes(prev);

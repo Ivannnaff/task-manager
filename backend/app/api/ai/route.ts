@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ai } from '@/lib/gemini'
 import { supabase } from '@/lib/supabase'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-}
+import { getUser, corsHeaders, unauthorizedResponse } from '@/lib/auth'
 
 const MODELS = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.6-flash']
 
@@ -15,10 +10,13 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: Request) {
+  const user = await getUser(request)
+  if (!user) return unauthorizedResponse()
+
   const { searchParams } = new URL(request.url)
   const taskId = searchParams.get('taskId')
   try {
-    let query = supabase.from('ai_responses').select('*')
+    let query = supabase.from('ai_responses').select('*').eq('user_id', user.id)
     if (taskId) query = query.eq('task_id', taskId)
     const { data, error } = await query
     if (error) {
@@ -31,6 +29,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const user = await getUser(request)
+  if (!user) return unauthorizedResponse()
   try {
     const { title, description, material, taskId } = await request.json()
 
@@ -95,6 +95,7 @@ export async function POST(request: Request) {
     if (taskId) {
       const { error } = await supabase.from('ai_responses').upsert(
         {
+          user_id: user.id,
           task_id: taskId,
           explanation: data.explanation,
           answer: data.answer,

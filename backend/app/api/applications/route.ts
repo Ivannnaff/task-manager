@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-}
+import { getUser, corsHeaders, unauthorizedResponse } from '@/lib/auth'
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders })
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await getUser(request))) return unauthorizedResponse()
+
   const { data, error } = await supabase
     .from('applications')
     .select('*')
@@ -27,6 +24,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!(await getUser(request))) return unauthorizedResponse()
   try {
     const body = await request.json()
     // Validate required fields
@@ -67,6 +65,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  if (!(await getUser(request))) return unauthorizedResponse()
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -98,6 +97,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!(await getUser(request))) return unauthorizedResponse()
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
