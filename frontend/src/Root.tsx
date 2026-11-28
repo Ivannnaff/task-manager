@@ -18,7 +18,7 @@ function authErrorMessage(message: string) {
 }
 
 const FEATURES = [
-  { icon: Columns3, label: 'Papan Kanban', subtitle: 'Belum, sedang dikerjakan, selesai.' },
+  { icon: Columns3, label: 'Papan Kanban', subtitle: 'Belum, dikerjakan, selesai.' },
   { icon: BookOpen, label: 'Asisten belajar dari materi', subtitle: 'Penjelasan, kunci jawaban, dan post-test dari AI.' },
   { icon: Bell, label: 'Pengingat deadline via WhatsApp', subtitle: 'Otomatis pagi dan malam.' },
 ];
