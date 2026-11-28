@@ -43,11 +43,9 @@ import {
 import NotesView from './components/NotesView';
 import NotificationBell from './components/NotificationBell';
 import { useFocusTrap } from './lib/useFocusTrap';
+import { apiFetch } from './lib/api';
 import RichText from './components/RichText';
 import ConfirmDialog from './components/ConfirmDialog';
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed';
 
@@ -155,7 +153,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [tRes, aRes] = await Promise.all([fetch(`${API}/tasks`), fetch(`${API}/ai`)]);
+      const [tRes, aRes] = await Promise.all([apiFetch('/tasks'), apiFetch('/ai')]);
       const tJson = await tRes.json();
       if (tJson.success) setTasks(tJson.data);
       const aJson = await aRes.json();
@@ -237,7 +235,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+      const res = await apiFetch('/upload', { method: 'POST', body: fd });
       const json = await res.json();
       if (json.success && json.data) {
         setMaterial(json.data);
@@ -267,9 +265,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     };
     try {
       if (editingTask) {
-        const res = await fetch(`${API}/tasks?id=${editingTask.id}`, {
+        const res = await apiFetch(`/tasks?id=${editingTask.id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
         const json = await res.json();
@@ -283,9 +280,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           notify('Gagal memperbarui: ' + (json.error || 'Unknown error'), 'err');
         }
       } else {
-        const res = await fetch(`${API}/tasks`, {
+        const res = await apiFetch('/tasks', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...payload, status: 'pending' }),
         });
         const json = await res.json();
@@ -309,9 +305,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     const prev = tasks;
     setTasks(tasks.map((t) => (t.id === task.id ? { ...t, status } : t)));
     try {
-      const res = await fetch(`${API}/tasks?id=${task.id}`, {
+      const res = await apiFetch(`/tasks?id=${task.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
       const json = await res.json().catch(() => ({}));
@@ -325,9 +320,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const generateAI = async (task: Task) => {
     setLoadingId(uid(task.id));
     try {
-      const res = await fetch(`${API}/ai`, {
+      const res = await apiFetch('/ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: task.title,
           description: task.description,
@@ -355,7 +349,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     setTasks(tasks.filter((t) => t.id !== id));
     if (selectedTask?.id === id) setSelectedTask(null);
     try {
-      const res = await fetch(`${API}/tasks?id=${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/tasks?id=${id}`, { method: 'DELETE' });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) throw new Error(json.error || `HTTP ${res.status}`);
       notify('Tugas dihapus');

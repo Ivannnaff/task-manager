@@ -16,6 +16,7 @@ const { createClient } = require('@supabase/supabase-js');
 const pino = require('pino');
 
 const API_URL = process.env.API_URL || 'http://localhost:3000/api';
+const API_KEY = process.env.BACKEND_API_KEY || '';
 const TARGET = process.env.WA_TARGET_NUMBER || '';
 const PAIRING_NUMBER = (process.env.WA_PAIRING_NUMBER || '').replace(/\D/g, '');
 const CRON_MORNING = process.env.CRON_MORNING || '0 7 * * *';
@@ -360,7 +361,9 @@ async function notifyDeadline(slot) {
 
   console.log(`\n[${slot}] Pengecekan deadline...`);
   try {
-    const res = await fetch(`${API_URL}/tasks`);
+    const res = await fetch(`${API_URL}/tasks`, {
+      headers: API_KEY ? { 'x-api-key': API_KEY } : {},
+    });
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'Gagal ambil tugas');
 

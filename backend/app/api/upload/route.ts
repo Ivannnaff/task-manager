@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-}
+import { getUser, corsHeaders, unauthorizedResponse } from '@/lib/auth'
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders })
 }
 
 export async function POST(request: Request) {
+  if (!(await getUser(request))) return unauthorizedResponse()
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File

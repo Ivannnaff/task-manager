@@ -67,6 +67,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           WA_TARGET_NUMBER: ${{ secrets.WA_TARGET_NUMBER }}
           API_URL: ${{ secrets.API_URL }}
+          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
           URGENT_THRESHOLD: ${{ secrets.URGENT_THRESHOLD }}
           ANTI_SPAM: ${{ secrets.ANTI_SPAM }}
           DIGEST: ${{ secrets.DIGEST }}

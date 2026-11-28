@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-}
+import { getUser, corsHeaders, unauthorizedResponse } from '@/lib/auth'
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders })
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const user = await getUser(request)
+  if (!user) return unauthorizedResponse()
+
   const { data, error } = await supabase
     .from('notes')
     .select('*')
+    .eq('user_id', user.id)
     .order('pinned', { ascending: false })
     .order('updated_at', { ascending: false })
 
@@ -25,11 +24,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const user = await getUser(request)
+  if (!user) return unauthorizedResponse()
   try {
     const body = await request.json()
     const { data, error } = await supabase
       .from('notes')
-      .insert([{ ...body, updated_at: new Date().toISOString() }])
+      .insert([{ ...body, user_id: user.id, updated_at: new Date().toISOString() }])
       .select()
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders })
@@ -41,6 +42,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const user = await getUser(request)
+  if (!user) return unauthorizedResponse()
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -52,6 +55,7 @@ export async function PATCH(request: Request) {
       .from('notes')
       .update({ ...body, updated_at: new Date().toISOString() })
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders })
@@ -63,13 +67,15 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const user = await getUser(request)
+  if (!user) return unauthorizedResponse()
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) {
       return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400, headers: corsHeaders })
     }
-    const { error } = await supabase.from('notes').delete().eq('id', id)
+    const { error } = await supabase.from('notes').delete().eq('id', id).eq('user_id', user.id)
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders })
     }
