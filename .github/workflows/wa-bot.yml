@@ -70,6 +70,7 @@ jobs:
           BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
           URGENT_THRESHOLD: ${{ secrets.URGENT_THRESHOLD }}
           ANTI_SPAM: ${{ secrets.ANTI_SPAM }}
+          RESEND: ${{ secrets.RESEND }}
           DIGEST: ${{ secrets.DIGEST }}
           MAX_SENDS_PER_DAY: ${{ secrets.MAX_SENDS_PER_DAY }}
           CRON_TZ: Asia/Jakarta

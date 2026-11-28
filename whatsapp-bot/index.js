@@ -24,6 +24,7 @@ const CRON_TZ = process.env.CRON_TZ || 'Asia/Jakarta';
 const URGENT_THRESHOLD = Number(process.env.URGENT_THRESHOLD || 2);
 const ANTI_SPAM = (process.env.ANTI_SPAM || 'true').toLowerCase() !== 'false';
 const DIGEST = (process.env.DIGEST || 'true').toLowerCase() !== 'false';
+const RESEND = (process.env.RESEND || 'false').toLowerCase() === 'true';
 const MAX_SENDS_PER_DAY = Number(process.env.MAX_SENDS_PER_DAY || 0);
 const TEST = process.argv.includes('--test');
 const ONCE = process.argv.includes('--once');
@@ -167,6 +168,7 @@ async function startBot() {
         console.log(`   Deadline mepet: H-${URGENT_THRESHOLD} / H-1 / hari ini / terlambat`);
         console.log(`   Mode: ${DIGEST ? 'DIGEST (gabung 1 pesan)' : 'per-tugas (1 pesan/tugas)'}`);
         console.log(`   Anti-spam: ${ANTI_SPAM ? 'AKTIF' : 'NONAKTIF (selalu kirim)'}`);
+        console.log(`   Kirim ulang: ${RESEND ? 'AKTIF' : 'NONAKTIF (1 pesan per slot per hari)'}`);
         console.log(`   Batas harian: ${MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY + ' pesan/hari' : 'tanpa batas'}\n`);
 
         if (!cronScheduled) {
@@ -394,8 +396,12 @@ async function notifyDeadline(slot) {
 
         const sent = ANTI_SPAM && (await hasLog(task.id, today));
         if (sent) {
-          console.log(`      sudah terkirim hari ini, kirim ulang: ${task.title} [${type}/${slot}]`);
-          resent.push({ task, d, type, sent: true });
+          if (RESEND) {
+            console.log(`      sudah terkirim hari ini, kirim ulang: ${task.title} [${type}/${slot}]`);
+            resent.push({ task, d, type, sent: true });
+          } else {
+            console.log(`      dilewati, sudah terkirim hari ini: ${task.title} [${type}/${slot}]`);
+          }
         } else {
           fresh.push({ task, d, type, sent: false });
         }
