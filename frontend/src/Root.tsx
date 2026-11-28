@@ -13,6 +13,7 @@ function authErrorMessage(message: string) {
   if (text.includes('unable to validate email') || text.includes('invalid email')) return 'Format email tidak valid.';
   if (text.includes('too many requests')) return 'Terlalu banyak percobaan. Tunggu sebentar.';
   if (text.includes('user not found') || text.includes('no user')) return 'Email belum terdaftar.';
+  if (text.includes('weak password') || text.includes('password')) return 'Password terlalu lemah. Gunakan minimal 6 karakter.';
   return 'Gagal memproses. Coba lagi.';
 }
 
@@ -21,6 +22,115 @@ const FEATURES = [
   { icon: BookOpen, label: 'Asisten belajar dari materi', subtitle: 'Penjelasan, kunci jawaban, dan post-test dari AI.' },
   { icon: Bell, label: 'Pengingat deadline via WhatsApp', subtitle: 'Otomatis pagi dan malam.' },
 ];
+
+function RecoveryForm({ onDone }: { onDone: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage('');
+    setSuccess(false);
+
+    if (password !== confirm) {
+      setMessage('Password dan konfirmasi tidak sama.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setSuccess(true);
+      setMessage('Password berhasil diperbarui.');
+      window.history.replaceState(null, '', window.location.pathname);
+    } catch (err: any) {
+      setMessage(authErrorMessage(err?.message || ''));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="font-geometric flex min-h-screen items-center justify-center bg-[#F8F9FC] p-4">
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8">
+        <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+          <KeyRound className="h-5 w-5" />
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Buat password baru</h1>
+        <p className="mt-2 text-sm text-slate-500">Masukkan password baru untuk akun StudyDesk kamu.</p>
+
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <div>
+            <label htmlFor="new-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
+              Password baru
+            </label>
+            <input
+              id="new-password"
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Minimal 6 karakter"
+              autoComplete="new-password"
+              className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-900 transition placeholder-slate-400 hover:border-slate-300 focus:border-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="confirm-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
+              Ulangi password
+            </label>
+            <input
+              id="confirm-password"
+              type="password"
+              required
+              minLength={6}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Masukkan lagi password"
+              autoComplete="new-password"
+              className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-900 transition placeholder-slate-400 hover:border-slate-300 focus:border-indigo-500"
+            />
+          </div>
+
+          {message && (
+            <p
+              role="alert"
+              className={`rounded-lg border p-3 text-xs ${
+                success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'
+              }`}
+            >
+              {message}
+            </p>
+          )}
+
+          {success ? (
+            <button
+              type="button"
+              onClick={onDone}
+              className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-indigo-700"
+            >
+              Lanjut ke Dashboard
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? 'Menyimpan...' : 'Simpan Password'}
+            </button>
+          )}
+        </form>
+      </div>
+    </main>
+  );
+}
 
 export default function Root() {
   const [session, setSession] = useState<Session | null>(null);
@@ -31,6 +141,7 @@ export default function Root() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [success, setSuccess] = useState(false);
+  const [recovering, setRecovering] = useState(() => window.location.hash.includes('type=recovery'));
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -38,7 +149,8 @@ export default function Root() {
       setChecking(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true);
       setSession(next);
       setChecking(false);
     });
@@ -89,6 +201,17 @@ export default function Root() {
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
         <p className="text-sm text-slate-500">Menyiapkan sesi...</p>
       </main>
+    );
+  }
+
+  if (recovering) {
+    return (
+      <RecoveryForm
+        onDone={() => {
+          setRecovering(false);
+          window.history.replaceState(null, '', window.location.pathname);
+        }}
+      />
     );
   }
 
