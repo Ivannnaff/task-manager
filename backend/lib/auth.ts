@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
 export function checkAuth(request: Request) {
@@ -17,6 +18,18 @@ export async function getUser(request: Request) {
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data.user) return null
   return data.user
+}
+
+export function getUserClient(request: Request) {
+  const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!token || !url || !key) return null
+
+  return createClient(url, key, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
 }
 
 export const corsHeaders = {

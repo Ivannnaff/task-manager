@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
-import { getUser, corsHeaders, unauthorizedResponse } from '@/lib/auth'
+import { getUser, getUserClient, corsHeaders, unauthorizedResponse } from '@/lib/auth'
+
+function dbError() {
+  return NextResponse.json(
+    { success: false, error: 'Database client tidak tersedia' },
+    { status: 500, headers: corsHeaders }
+  )
+}
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders })
@@ -9,8 +15,10 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const db = getUserClient(request)
+  if (!db) return dbError()
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('notes')
     .select('*')
     .eq('user_id', user.id)
@@ -26,9 +34,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const db = getUserClient(request)
+  if (!db) return dbError()
+
   try {
     const body = await request.json()
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('notes')
       .insert([{ ...body, user_id: user.id, updated_at: new Date().toISOString() }])
       .select()
@@ -44,6 +55,9 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const db = getUserClient(request)
+  if (!db) return dbError()
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -51,7 +65,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400, headers: corsHeaders })
     }
     const body = await request.json()
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('notes')
       .update({ ...body, updated_at: new Date().toISOString() })
       .eq('id', id)
@@ -69,13 +83,16 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const db = getUserClient(request)
+  if (!db) return dbError()
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) {
       return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400, headers: corsHeaders })
     }
-    const { error } = await supabase.from('notes').delete().eq('id', id).eq('user_id', user.id)
+    const { error } = await db.from('notes').delete().eq('id', id).eq('user_id', user.id)
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders })
     }
@@ -84,4 +101,3 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders })
   }
 }
-
