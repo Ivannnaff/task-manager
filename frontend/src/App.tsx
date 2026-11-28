@@ -40,6 +40,8 @@ import {
   StickyNote,
   LogOut,
   Settings2,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import NotesView from './components/NotesView';
 import NotificationBell from './components/NotificationBell';
@@ -90,7 +92,7 @@ const URGENT_DAYS = 2;
 
 const COLUMNS: { id: TaskStatus; title: string; accent: string; dot: string }[] = [
   { id: 'pending', title: 'Belum', accent: 'text-slate-600', dot: 'bg-slate-400' },
-  { id: 'in_progress', title: 'Sedang Dikerjakan', accent: 'text-amber-600', dot: 'bg-amber-500' },
+  { id: 'in_progress', title: 'Dikerjakan', accent: 'text-amber-600', dot: 'bg-amber-500' },
   { id: 'completed', title: 'Selesai', accent: 'text-emerald-600', dot: 'bg-emerald-500' },
 ];
 
@@ -581,7 +583,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           {view === 'dashboard' && (
             <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
               <StatCard icon={<ListTodo className="h-5 w-5" />} label="Total Tugas" value={stats.total} tone="indigo" />
-              <StatCard icon={<PlayCircle className="h-5 w-5" />} label="Sedang Dikerjakan" value={stats.inProgress} tone="amber" />
+              <StatCard icon={<PlayCircle className="h-5 w-5" />} label="Dikerjakan" value={stats.inProgress} tone="amber" />
               <StatCard icon={<CheckCheck className="h-5 w-5" />} label="Selesai" value={stats.completed} tone="emerald" />
               <StatCard icon={<AlertCircle className="h-5 w-5" />} label="Deadline Dekat" value={stats.urgent} tone="rose" />
             </div>
@@ -605,7 +607,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           {view === 'board' && (
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="flex items-center gap-1.5 text-sm text-slate-500">
-                <GripVertical className="h-4 w-4" /> Tarik kartu antar kolom untuk ubah status
+                <GripVertical className="h-4 w-4" /> Geser kartu atau ubah status lewat dropdown
               </span>
               {searchInput}
             </div>
@@ -720,6 +722,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                       onGenerate={generateAI}
                       onDelete={askDelete}
                       onEdit={openEdit}
+                      onToggleStatus={updateStatus}
                       badge={deadlineBadge}
                     />
                   </div>
@@ -926,6 +929,65 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   );
 }
 
+function StatusDropdown({ task, onChange }: { task: Task; onChange: (status: TaskStatus) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Ubah status "${task.title}"`}
+        className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+      >
+        {COLUMNS.find((column) => column.id === task.status)?.title}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-20 mt-1 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
+        >
+          {COLUMNS.map((column) => (
+            <button
+              key={column.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onChange(column.id);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-slate-700 transition hover:bg-slate-50"
+            >
+              {column.title}
+              {task.status === column.id && <Check className="h-3 w-3 text-indigo-600" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SidebarItem({
   icon,
   label,
@@ -1057,6 +1119,7 @@ function TaskCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        <StatusDropdown task={task} onChange={(status) => onToggleStatus(task, status)} />
         <button
           onClick={() => onOpen(task)}
           className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
@@ -1106,6 +1169,7 @@ function KanbanColumn({
   onGenerate,
   onDelete,
   onEdit,
+  onToggleStatus,
   badge,
 }: {
   column: { id: TaskStatus; title: string; accent: string; dot: string };
@@ -1116,6 +1180,7 @@ function KanbanColumn({
   onGenerate: (t: Task) => void;
   onDelete: (id: string | number) => void;
   onEdit: (t: Task) => void;
+  onToggleStatus: (t: Task, s: TaskStatus) => void;
   badge: (t: Task) => { text: string; cls: string } | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
@@ -1138,7 +1203,7 @@ function KanbanColumn({
       <div className="flex-1 space-y-2">
         {tasks.length === 0 ? (
           <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs text-slate-500">
-            Tarik tugas ke sini
+            Belum ada tugas di kolom ini
           </div>
         ) : (
           tasks.map((task) => (
@@ -1151,6 +1216,7 @@ function KanbanColumn({
               onGenerate={onGenerate}
               onDelete={onDelete}
               onEdit={onEdit}
+              onToggleStatus={onToggleStatus}
               badge={badge}
             />
           ))
@@ -1168,6 +1234,7 @@ function KanbanCard({
   onGenerate,
   onDelete,
   onEdit,
+  onToggleStatus,
   badge,
 }: {
   task: Task;
@@ -1177,6 +1244,7 @@ function KanbanCard({
   onGenerate: (t: Task) => void;
   onDelete: (id: string | number) => void;
   onEdit: (t: Task) => void;
+  onToggleStatus: (t: Task, s: TaskStatus) => void;
   badge: (t: Task) => { text: string; cls: string } | null;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -1224,6 +1292,7 @@ function KanbanCard({
         </div>
       </div>
       <div className="mt-2 flex items-center gap-1.5 border-t border-slate-100 pt-2">
+        <StatusDropdown task={task} onChange={(status) => onToggleStatus(task, status)} />
         <button
           onClick={() => onOpen(task)}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50"
