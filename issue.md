@@ -14,7 +14,7 @@
 - [x] Tabel `notes` (title, content, color, pinned) + `wa_logs` (anti-spam)
 - [x] Bucket Storage `materials`
 - [x] Konfigurasi koneksi Supabase (`lib/supabase.ts`, `lib/supabaseAdmin.ts`)
-- [ ] **PENDING (manual):** jalankan `migrate-notes-wa.sql` di Supabase SQL Editor
+- [ ] **PENDING (manual):** jalankan migrasi tabel di Supabase SQL Editor
 - [ ] **PENDING (manual):** isi `SUPABASE_SERVICE_ROLE_KEY` di `.env.local`
 
 ## 3. Backend (Next.js) Development
@@ -52,7 +52,7 @@
 - [ ] Deploy bot WhatsApp ke host selalu-nyala (Railway/Render/VPS)
 
 ## Known Issues / Catatan
-- Tabel `notes` & `wa_logs` belum dibuat sampai `migrate-notes-wa.sql` dijalankan.
+- Tabel `notes` & `wa_logs` belum dibuat sampai migrasi dijalankan di Supabase SQL Editor.
 - Bot WhatsApp butuh HP tetap terhubung; tidak bisa jalan di Vercel (serverless).
 - Upload ke Storage butuh `SUPABASE_SERVICE_ROLE_KEY`.
 - Model `gemini-2.5-flash` sudah tidak tersedia → pakai `gemini-3.8-flash` (+ fallback).

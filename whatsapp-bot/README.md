@@ -62,4 +62,4 @@ Kalau bot lama masih jalan di Railway/VPS, **matikan** supaya pesan nggak dobel.
 
 ## Tabel yang dibutuhkan
 
-`wa_sessions` dan `wa_logs` — keduanya ada di `supabase-setup.sql` / `migrate-notes-wa.sql`.
+`wa_sessions` dan `wa_logs` — keduanya dibuat lewat Supabase SQL Editor.
