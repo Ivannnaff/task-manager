@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
-import { getUser, checkAuth, corsHeaders, unauthorizedResponse } from '@/lib/auth'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { getUser, getUserClient, checkAuth, corsHeaders, unauthorizedResponse } from '@/lib/auth'
+
+function dbError() {
+  return NextResponse.json(
+    { success: false, error: 'Database client tidak tersedia' },
+    { status: 500, headers: corsHeaders }
+  )
+}
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders })
@@ -8,9 +15,13 @@ export async function OPTIONS() {
 
 export async function GET(request: Request) {
   const user = await getUser(request)
-  if (!user && !checkAuth(request)) return unauthorizedResponse()
+  const isService = !user && checkAuth(request)
+  if (!user && !isService) return unauthorizedResponse()
 
-  let query = supabase.from('tasks').select('*')
+  const db = user ? getUserClient(request) : supabaseAdmin
+  if (!db) return dbError()
+
+  let query = db.from('tasks').select('*')
   if (user) query = query.eq('user_id', user.id)
   const { data, error } = await query.order('id', { ascending: false })
   if (error) {
@@ -22,9 +33,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const db = getUserClient(request)
+  if (!db) return dbError()
+
   try {
     const body = await request.json()
-    const { data, error } = await supabase.from('tasks').insert([{ ...body, user_id: user.id }]).select()
+    const { data, error } = await db.from('tasks').insert([{ ...body, user_id: user.id }]).select()
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders })
     }
@@ -37,6 +51,9 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const db = getUserClient(request)
+  if (!db) return dbError()
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -44,7 +61,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400, headers: corsHeaders })
     }
     const body = await request.json()
-    const { data, error } = await supabase.from('tasks').update(body).eq('id', id).eq('user_id', user.id).select()
+    const { data, error } = await db.from('tasks').update(body).eq('id', id).eq('user_id', user.id).select()
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders })
     }
@@ -57,13 +74,16 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const db = getUserClient(request)
+  if (!db) return dbError()
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) {
       return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400, headers: corsHeaders })
     }
-    const { error } = await supabase.from('tasks').delete().eq('id', id).eq('user_id', user.id)
+    const { error } = await db.from('tasks').delete().eq('id', id).eq('user_id', user.id)
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders })
     }
@@ -72,4 +92,3 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders })
   }
 }
-
