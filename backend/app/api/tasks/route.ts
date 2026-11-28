@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { getUser, getUserClient, checkAuth, corsHeaders, unauthorizedResponse } from '@/lib/auth'
+import { rateLimit, retryAfterSeconds } from '@/lib/rateLimit'
 
 function dbError() {
   return NextResponse.json(
     { success: false, error: 'Database client tidak tersedia' },
     { status: 500, headers: corsHeaders }
+  )
+}
+
+function writeLimit(userId: string) {
+  const limit = rateLimit(`tasks-write:${userId}`, 60, 60_000)
+  if (limit.ok) return null
+  return NextResponse.json(
+    { success: false, error: 'Terlalu banyak perubahan. Coba lagi sebentar.' },
+    { status: 429, headers: { ...corsHeaders, 'Retry-After': String(retryAfterSeconds(limit.resetAt)) } }
   )
 }
 
@@ -33,6 +43,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const limited = writeLimit(user.id)
+  if (limited) return limited
   const db = getUserClient(request)
   if (!db) return dbError()
 
@@ -51,6 +63,8 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const limited = writeLimit(user.id)
+  if (limited) return limited
   const db = getUserClient(request)
   if (!db) return dbError()
 
@@ -74,6 +88,8 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+  const limited = writeLimit(user.id)
+  if (limited) return limited
   const db = getUserClient(request)
   if (!db) return dbError()
 

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { ai } from '@/lib/gemini'
 import { getUser, getUserClient, corsHeaders, unauthorizedResponse } from '@/lib/auth'
+import { getClientId, rateLimit, retryAfterSeconds } from '@/lib/rateLimit'
 
-const MODELS = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.6-flash']
+const MODELS = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash']
 
 function dbError() {
   return NextResponse.json(
@@ -39,6 +40,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getUser(request)
   if (!user) return unauthorizedResponse()
+
+  const limit = rateLimit(`ai:${getClientId(request)}`, 10, 60_000)
+  if (!limit.ok) {
+    return NextResponse.json(
+      { success: false, error: 'Terlalu banyak permintaan AI. Coba lagi sebentar.' },
+      { status: 429, headers: { ...corsHeaders, 'Retry-After': String(retryAfterSeconds(limit.resetAt)) } }
+    )
+  }
+
   const db = getUserClient(request)
   if (!db) return dbError()
   try {
