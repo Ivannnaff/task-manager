@@ -4,6 +4,17 @@ import type { Session } from '@supabase/supabase-js';
 import App from './App';
 import { supabase } from './lib/supabase';
 
+function authErrorMessage(message: string) {
+  const text = message.toLowerCase();
+  if (text.includes('invalid login credentials')) return 'Email atau password salah. Coba lagi.';
+  if (text.includes('email not confirmed')) return 'Email belum diverifikasi. Cek inbox kamu.';
+  if (text.includes('already registered') || text.includes('user already')) return 'Email sudah terdaftar. Silakan masuk.';
+  if (text.includes('password should be at least')) return 'Password minimal 6 karakter.';
+  if (text.includes('unable to validate email') || text.includes('invalid email')) return 'Format email tidak valid.';
+  if (text.includes('too many requests')) return 'Terlalu banyak percobaan. Tunggu sebentar.';
+  return 'Gagal memproses. Coba lagi.';
+}
+
 export default function Root() {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
@@ -44,7 +55,7 @@ export default function Root() {
         }
       }
     } catch (err: any) {
-      setMessage(err?.message || 'Gagal memproses. Coba lagi.');
+      setMessage(authErrorMessage(err?.message || ''));
     } finally {
       setLoading(false);
     }
