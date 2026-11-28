@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getUser, corsHeaders, unauthorizedResponse } from '@/lib/auth'
+import { getClientId, rateLimit, retryAfterSeconds } from '@/lib/rateLimit'
+
+const MAX_FILE_SIZE = 15 * 1024 * 1024
+const ALLOWED_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'csv', 'png', 'jpg', 'jpeg', 'webp', 'gif'])
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders })
@@ -8,11 +12,35 @@ export async function OPTIONS() {
 
 export async function POST(request: Request) {
   if (!(await getUser(request))) return unauthorizedResponse()
+
+  const limit = rateLimit(`upload:${getClientId(request)}`, 20, 60_000)
+  if (!limit.ok) {
+    return NextResponse.json(
+      { success: false, error: 'Terlalu banyak unggahan. Coba lagi sebentar.' },
+      { status: 429, headers: { ...corsHeaders, 'Retry-After': String(retryAfterSeconds(limit.resetAt)) } }
+    )
+  }
+
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File
     if (!file) {
       return NextResponse.json({ success: false, error: 'No file uploaded' }, { status: 400, headers: corsHeaders })
+    }
+
+    const extension = file.name.toLowerCase().split('.').pop() || ''
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      return NextResponse.json(
+        { success: false, error: 'Tipe file tidak didukung' },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { success: false, error: 'Ukuran file maksimal 15MB' },
+        { status: 400, headers: corsHeaders }
+      )
     }
 
     const arrayBuffer = await file.arrayBuffer()
