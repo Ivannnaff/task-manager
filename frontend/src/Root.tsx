@@ -84,7 +84,7 @@ export default function Root() {
   if (!session) {
     return (
       <main className="font-geometric min-h-screen bg-[#F8F9FC] lg:grid lg:grid-cols-[minmax(0,1fr)_560px]">
-        <section className="relative flex min-w-0 flex-col overflow-hidden px-6 py-8 sm:px-12 lg:px-16">
+        <section className="relative flex min-w-0 flex-col overflow-hidden px-6 py-6 sm:px-12 sm:py-8 lg:px-16">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -right-24 top-10 h-64 w-64 rounded-full bg-indigo-200/25 blur-3xl"
@@ -97,17 +97,17 @@ export default function Root() {
             <span className="text-base font-bold tracking-tight text-slate-900">StudyDesk</span>
           </div>
 
-          <div className="relative flex flex-1 items-center py-12">
+          <div className="relative flex flex-1 items-center py-6 sm:py-12">
             <div className="max-w-4xl">
-              <h1 className="text-4xl font-bold leading-[1.08] tracking-[-0.04em] text-slate-900 sm:text-5xl lg:text-[3.25rem]">
+              <h1 className="text-3xl font-bold leading-[1.08] tracking-[-0.04em] text-slate-900 sm:text-4xl lg:text-[3.25rem]">
                 Kelola Tugas, Pahami Materi, Anti Telat Deadline.
               </h1>
 
-              <p className="mt-6 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg">
+              <p className="mt-6 hidden max-w-2xl text-base leading-relaxed text-slate-600 sm:block sm:text-lg">
                 Satu ruang kerja praktis untuk menyusun papan tugas, merangkum catatan kuliah dengan AI, dan dapat pengingat otomatis di WhatsApp.
               </p>
 
-              <div className="mt-10 grid gap-3 sm:grid-cols-3">
+              <div className="mt-10 hidden gap-3 sm:grid sm:grid-cols-3">
                 {FEATURES.map(({ icon: Icon, label, subtitle }) => (
                   <div key={label} className="rounded-lg border border-slate-200 bg-white/80 p-4">
                     <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
