@@ -39,6 +39,7 @@ import {
   Pencil,
   StickyNote,
   LogOut,
+  Settings2,
 } from 'lucide-react';
 import NotesView from './components/NotesView';
 import NotificationBell from './components/NotificationBell';
@@ -46,6 +47,7 @@ import { useFocusTrap } from './lib/useFocusTrap';
 import { apiFetch } from './lib/api';
 import RichText from './components/RichText';
 import ConfirmDialog from './components/ConfirmDialog';
+import ProfileDialog from './components/ProfileDialog';
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed';
 
@@ -142,6 +144,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
   const [confirmTask, setConfirmTask] = useState<Task | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -176,7 +180,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   }, [fetchAll]);
 
   useEffect(() => {
-    if (!showModal && !selectedTask) return;
+    if (!showModal && !selectedTask && !showProfile) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (showModal) {
@@ -186,13 +190,15 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         setDeadline('');
         setMaterial(null);
         setEditingTask(null);
+      } else if (showProfile) {
+        setShowProfile(false);
       } else if (selectedTask) {
         setSelectedTask(null);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showModal, selectedTask]);
+  }, [showModal, selectedTask, showProfile]);
 
   const resetForm = () => {
     setTitle('');
@@ -524,7 +530,14 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               <div className="flex items-center gap-2 lg:hidden">
                 <NotificationBell tasks={tasks} onOpenTask={openDetail} onGoBoard={() => setView('board')} />
                 <button
-                  onClick={onLogout}
+                  onClick={() => setShowProfile(true)}
+                  aria-label="Pengaturan notifikasi"
+                  className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
+                >
+                  <Settings2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setConfirmLogout(true)}
                   aria-label="Keluar"
                   className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-rose-200 hover:text-rose-600"
                 >
@@ -534,6 +547,13 @@ export default function App({ onLogout }: { onLogout: () => void }) {
             </div>
             <div className="hidden items-center gap-2 lg:flex">
               <NotificationBell tasks={tasks} onOpenTask={openDetail} onGoBoard={() => setView('board')} />
+              <button
+                onClick={() => setShowProfile(true)}
+                aria-label="Pengaturan notifikasi"
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
+              >
+                <Settings2 className="h-4 w-4" />
+              </button>
               <button
                 onClick={onLogout}
                 aria-label="Keluar"
@@ -822,6 +842,20 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           onClose={() => setSelectedTask(null)}
         />
       )}
+
+      {showProfile && <ProfileDialog onClose={() => setShowProfile(false)} notify={notify} />}
+
+      <ConfirmDialog
+        open={confirmLogout}
+        title="Keluar dari StudyDesk?"
+        message="Sesi login kamu akan diakhiri."
+        confirmLabel="Keluar"
+        onCancel={() => setConfirmLogout(false)}
+        onConfirm={() => {
+          setConfirmLogout(false);
+          onLogout();
+        }}
+      />
 
       <ConfirmDialog
         open={!!confirmTask}

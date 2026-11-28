@@ -12,6 +12,7 @@ function authErrorMessage(message: string) {
   if (text.includes('password should be at least')) return 'Password minimal 6 karakter.';
   if (text.includes('unable to validate email') || text.includes('invalid email')) return 'Format email tidak valid.';
   if (text.includes('too many requests')) return 'Terlalu banyak percobaan. Tunggu sebentar.';
+  if (text.includes('user not found') || text.includes('no user')) return 'Email belum terdaftar.';
   return 'Gagal memproses. Coba lagi.';
 }
 
@@ -24,11 +25,12 @@ const FEATURES = [
 export default function Root() {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -48,15 +50,24 @@ export default function Root() {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+    setSuccess(false);
 
     try {
-      if (mode === 'login') {
+      if (mode === 'reset') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (error) throw error;
+        setSuccess(true);
+        setMessage('Link reset password sudah dikirim ke email kamu.');
+      } else if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (!data.session) {
+          setSuccess(true);
           setMessage('Akun dibuat. Cek email kamu untuk konfirmasi, lalu masuk.');
         }
       }
@@ -125,7 +136,7 @@ export default function Root() {
         <section className="flex min-w-0 items-center justify-center border-t border-slate-200 bg-white px-6 py-10 sm:px-12 lg:border-l lg:border-t-0 lg:px-8">
           <div className="w-full max-w-md">
             <h2 className="mb-8 text-2xl font-bold tracking-tight text-slate-900">
-              {mode === 'login' ? 'Masuk ke StudyDesk' : 'Buat akun StudyDesk'}
+              {mode === 'login' ? 'Masuk ke StudyDesk' : mode === 'register' ? 'Buat akun StudyDesk' : 'Reset password'}
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -150,30 +161,37 @@ export default function Root() {
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="auth-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
-                  Password
-                </label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                    <KeyRound className="h-5 w-5" />
-                  </span>
-                  <input
-                    id="auth-password"
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Minimal 6 karakter"
-                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                    className="w-full rounded-lg border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-900 transition placeholder-slate-400 hover:border-slate-300 focus:border-indigo-500"
-                  />
+              {mode !== 'reset' && (
+                <div>
+                  <label htmlFor="auth-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                      <KeyRound className="h-5 w-5" />
+                    </span>
+                    <input
+                      id="auth-password"
+                      type="password"
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Minimal 6 karakter"
+                      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                      className="w-full rounded-lg border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-900 transition placeholder-slate-400 hover:border-slate-300 focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {message && (
-                <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                <p
+                  role="alert"
+                  className={`rounded-lg border p-3 text-xs ${
+                    success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'
+                  }`}
+                >
                   {message}
                 </p>
               )}
@@ -183,23 +201,58 @@ export default function Root() {
                 disabled={loading}
                 className="w-full rounded-lg bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? 'Menunggu...' : mode === 'login' ? 'Masuk' : 'Buat Akun'}
+                {loading ? 'Menunggu...' : mode === 'login' ? 'Masuk' : mode === 'register' ? 'Buat Akun' : 'Kirim Link Reset'}
               </button>
             </form>
 
-            <p className="mt-6 text-sm text-slate-500">
-              {mode === 'login' ? 'Belum punya akun?' : 'Sudah punya akun?'}{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode(mode === 'login' ? 'register' : 'login');
-                  setMessage('');
-                }}
-                className="py-2 font-bold text-indigo-600 hover:text-indigo-700"
-              >
-                {mode === 'login' ? 'Daftar' : 'Masuk'}
-              </button>
-            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
+              {mode === 'reset' ? (
+                <p>
+                  Ingat password?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('login');
+                      setMessage('');
+                      setSuccess(false);
+                    }}
+                    className="py-2 font-bold text-indigo-600 hover:text-indigo-700"
+                  >
+                    Kembali ke Masuk
+                  </button>
+                </p>
+              ) : (
+                <>
+                  <p>
+                    {mode === 'login' ? 'Belum punya akun?' : 'Sudah punya akun?'}{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode(mode === 'login' ? 'register' : 'login');
+                        setMessage('');
+                        setSuccess(false);
+                      }}
+                      className="py-2 font-bold text-indigo-600 hover:text-indigo-700"
+                    >
+                      {mode === 'login' ? 'Daftar' : 'Masuk'}
+                    </button>
+                  </p>
+                  {mode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('reset');
+                        setMessage('');
+                        setSuccess(false);
+                      }}
+                      className="py-2 font-bold text-indigo-600 hover:text-indigo-700"
+                    >
+                      Lupa password?
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </section>
       </main>
